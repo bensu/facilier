@@ -1,3 +1,3 @@
-# Cubes
+# Facilier
 
-Playground to play with new AI concepts -- do not use.
+A ClojureScript library/service to test live applications.

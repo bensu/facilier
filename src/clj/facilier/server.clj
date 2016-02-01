@@ -51,6 +51,9 @@
 ;; ======================================================================
 ;; HTTP Service
 
+;; ======================================================================
+;; States
+
 (defn handle-state! [params]
   (let [{:keys [session-id state]} params]
     (try
@@ -65,18 +68,38 @@
     (catch Exception e
       (error-response e))))
 
-(defn handle-delete! [{:keys [session-id]}]
+(defn handle-delete-state! [{:keys [session-id]}]
   (try
     (delete-state! session-id)
     (ok-response {:ok "deleted"})
     (catch Exception e
       (error-response e))))
 
-(defroutes app-routes
-  (GET "/" [] (ok-response "<h1>YES</h1>"))
+(defroutes state-routes
   (GET "/state/:session-id" {:keys [params]} (return-state params))
   (POST "/state/:session-id" {:keys [params]} (handle-state! params))
-  (DELETE "/state/:session-id" {:keys [params]} (handle-delete! params)))
+  (DELETE "/state/:session-id" {:keys [params]} (handle-delete-state! params)))
+
+;; ======================================================================
+;; Actions
+
+(defn return-actions [{:keys [session-id]}]
+  ["actions"])
+
+(defn handle-action! [{:keys [session-id]}]
+  (println "handle action"))
+
+(defn handle-delete-actions! [{:keys [session-id]}]
+  (println "delete-actions"))
+
+(defroutes action-routes
+  (GET "/action/:session-id" {:keys [params]} (return-actions params))
+  (POST "/action/:session-id" {:keys [params]} (handle-action! params))
+  (DELETE "/action/:session-id" {:keys [params]} (handle-delete-actions! params)))
+
+(defroutes app-routes
+  (GET "/" [] (ok-response "<h1>YES</h1>"))
+ )
 
 ;; FIX: replace with wrap-cors
 (defn add-cors [f]
@@ -88,7 +111,7 @@
                        "Access-Control-Allow-Headers" "Content-Type"}))))
 
 (def app-handler
-  (-> app-routes
+  (-> state-routes
       wrap-edn-params
       add-cors
       #_(wrap-cors :access-control-allow-origin [#".*"]

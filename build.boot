@@ -7,8 +7,11 @@
                  [pandeiro/boot-http        "0.6.3"      :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.1-SNAPSHOT" :scope "test"]
                  [org.clojure/clojurescript "1.7.170"]
-                 ;; Dev
-                 [org.omcljs/om "1.0.0-alpha22"]
+                 ;; Dev App
+                 [org.omcljs/om "1.0.0-alpha22" :exclusions [cljsjs/react]]
+                 [cljs-react-test "0.1.3-SNAPSHOT" :scope "test"]
+                 [prismatic/dommy "1.0.0" :score "test"]
+                 [cljsjs/react-with-addons "0.14.3-0" :scope "test"]
                  ;; Facilier
                  [reloaded.repl "0.2.0"]
                  [com.stuartsierra/component "0.2.3"]
@@ -26,7 +29,7 @@
  '[pandeiro.boot-http    :refer [serve]]
  '[crisptrutski.boot-cljs-test :refer [test-cljs]]
  '[reloaded.repl         :refer [go reset start stop system]]
- '[facilier.boot             :refer [start-app]])
+ '[facilier.boot         :refer [start-app]])
 
 (deftask build []
   (comp (speak)

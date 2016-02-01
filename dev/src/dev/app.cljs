@@ -1,11 +1,13 @@
 (ns dev.app
   "Application to test and develop Facilier itself"
   (:require [om.next :as om :refer-macros [defui]]
-            [om.dom :as dom]))
+            [om.dom :as dom]
+            [facilier.client :as f]))
 
 (defonce app-state
-  (atom {:text "Something to say"
-         :toggle true}))
+  (f/log-states! "dev"
+   (atom {:text "Something to say"
+          :toggle true})))
 
 (defn read
   [{:keys [state] :as env} key params]
@@ -22,6 +24,10 @@
   {:value [:toggle]
    :action (fn []
              (swap! app-state #(update % :toggle not)))})
+
+(defn cast! [this action]
+  (f/log-action! "dev" action)
+  (om/transact! this action))
 
 (def parser (om/parser {:read read :mutate mutate}))
 
@@ -42,7 +48,7 @@
                                                :id "toggle"
                                                :checked toggle
                                                :onClick (fn [_]
-                                                          (om/transact! this `[(todo/toggle nil)]))})
+                                                          (cast! this `[(todo/toggle nil)]))})
                                (dom/label #js {:htmlFor "toggle"} "Toggle"))))))
 
 (defn init []

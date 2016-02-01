@@ -3,15 +3,9 @@
   (:require [om.next :as om :refer-macros [defui]]
             [om.dom :as dom]))
 
-(defonce app-state (atom {:text "Something to say"}))
-
-(defui Widget
-  static om/IQuery
-  (query [_] [:text])
-  Object
-  (render [this]
-          (let [{:keys [text]} (om/props this)]
-            (dom/div nil text))))
+(defonce app-state
+  (atom {:text "Something to say"
+         :toggle true}))
 
 (defn read
   [{:keys [state] :as env} key params]
@@ -23,11 +17,33 @@
 
 (defmethod mutate :default [_ _ _] {:value []})
 
+(defmethod mutate `todo/toggle
+  [{:keys [state]} _ _]
+  {:value [:toggle]
+   :action (fn []
+             (swap! app-state #(update % :toggle not)))})
+
 (def parser (om/parser {:read read :mutate mutate}))
 
 (def reconciler
   (om/reconciler {:state app-state
                   :parser parser}))
+
+(defui Widget
+  static om/IQuery
+  (query [_] [:text :toggle])
+  Object
+  (render [this]
+          (let [{:keys [text toggle]} (om/props this)]
+            (dom/div nil
+                     (dom/div nil text)
+                     (dom/span nil
+                               (dom/input #js {:type "checkbox"
+                                               :id "toggle"
+                                               :checked toggle
+                                               :onClick (fn [_]
+                                                          (om/transact! this `[(todo/toggle nil)]))})
+                               (dom/label #js {:htmlFor "toggle"} "Toggle"))))))
 
 (defn init []
   (println "Start App")

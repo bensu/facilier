@@ -1,58 +1,85 @@
 (ns facilier.panel
   "Application to test and develop Facilier itself"
-  (:require [om.next :as om :refer-macros [defui]]
+  (:require [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
+            [cljs.pprint :as pp :refer [pprint]]
+            [ankha.core :as ankha]
             [facilier.client :as f]))
+
+(enable-console-print!)
+
+;; ======================================================================
+;; Data
+
+(def sessions
+  (let [sessions (take 10 (repeatedly (fn [] {:uuid (str (random-uuid))
+                                             :date (js/Date.)
+                                             :duration "20 min"
+                                             :platform "Chrome"
+                                             :status "OK"
+                                             :state {:some "stuff"}})))]
+    (zipmap (map :uuid sessions) sessions)))
 
 (defonce app-state
   (f/log-states! "dev"
    (atom {:text "Something to say"
+          :session nil
+          :sessions sessions
           :toggle true})))
 
-(defn read
-  [{:keys [state] :as env} key params]
-  (if-let [[_ value] (find @state key)]
-    {:value value}
-    {:value nil}))
+;; ======================================================================
+;; HTML
 
-(defmulti mutate om/dispatch)
+(defn session-view [session owner]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       (let [{:keys [uuid date duration platform status]} session]
+         [:div.session nil
+          [:p "Session id: " uuid]
+          [:p "Time: " (str date)]
+          [:p "Duration: " duration]
+          [:p "Status: " status]
+          [:div.state "State:" (om/build ankha/inspector (:state session))]])))))
 
-(defmethod mutate :default [_ _ _] {:value []})
 
-(defmethod mutate `todo/toggle
-  [{:keys [state]} _ _]
-  {:value [:toggle]
-   :action (fn []
-             (swap! app-state #(update % :toggle not)))})
+;; ======================================================================
+;; Table
 
-(defn cast! [this action]
-  (f/log-action! "dev" action)
-  (om/transact! this action))
+(def title-row
+  [:tr [:th "Session Id"] [:th "Time"] [:th "Duration"] [:th "Platform"] [:th "Status"]])
 
-(def parser (om/parser {:read read :mutate mutate}))
+(defn row [session owner {:keys [click-fn]}]
+  (reify
+    om/IRender
+    (render [_]
+      (let [{:keys [uuid date duration platform status]} session]
+        (html
+         [:tr {:onClick (fn [_]
+                        (click-fn uuid))}
+          [:td uuid] [:td (str date)] [:td duration] [:td platform] [:td status]])))))
 
-(def reconciler
-  (om/reconciler {:state app-state
-                  :parser parser}))
+(defn widget [{:keys [sessions] :as data} owner]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       [:div.container {}
+        [:div.bar {}
+         [:form {}
+          [:label {:htmlFor "search"} "Search"]
+          [:input#search {:type "search"}]]]
+        [:div.main {}
+         [:table.u-full-width {}
+          [:thead title-row]
+          [:tbody (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
+                                                             (om/update! data :session uuid))}})
+                        (vals (:sessions data)))]]
+         (when-let [session-id (:session data)]
+           (om/build session-view (get sessions session-id)))]]))))
 
-(defui Widget
-  static om/IQuery
-  (query [_] [:text :toggle])
-  Object
-  (render [this]
-          (let [{:keys [text toggle]} (om/props this)]
-            (html
-             [:div {}
-              [:form {}
-               [:label.hide {:htmlFor "search"} "Search"]
-               [:input.input#search {:type "search"}]]
-              [:input {:type "checkbox"
-                       :id "toggle"
-                       :checked toggle
-                       :onClick (fn [_]
-                                  (cast! this `[(todo/toggle nil)]))}]
-              [:label {:htmlFor "toggle"} "Toggle"]]))))
 
 (defn init []
   (println "Start App")
-  (om/add-root! reconciler Widget (. js/document (getElementById "container"))))
+  (om/root widget app-state {:target (. js/document (getElementById "container"))}))

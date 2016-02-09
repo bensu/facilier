@@ -1,4 +1,4 @@
-(ns test.dev.app
+(ns test.facilier.panel
   (:require-macros [facilier.test :as ftest :refer [def-state-inv]])
   (:require [cljs.test :refer-macros [deftest testing is use-fixtures async]]
             [cljs-react-test.simulate :as sim]
@@ -6,7 +6,7 @@
             [dommy.core :as dommy :refer-macros [sel1 sel]]
             [om.next :as om :refer-macros [defui]]
             [facilier.client :as f]
-            [dev.app :as app]))
+            [facilier.panel :as app]))
 
 
 (def-state-inv toggle-on "dev" [state]

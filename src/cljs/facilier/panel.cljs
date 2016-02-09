@@ -1,7 +1,7 @@
-(ns dev.app
+(ns facilier.panel
   "Application to test and develop Facilier itself"
   (:require [om.next :as om :refer-macros [defui]]
-            [om.dom :as dom]
+            [sablono.core :as html :refer-macros [html]]
             [facilier.client :as f]))
 
 (defonce app-state
@@ -41,15 +41,17 @@
   Object
   (render [this]
           (let [{:keys [text toggle]} (om/props this)]
-            (dom/div nil
-                     (dom/div nil text)
-                     (dom/span nil
-                               (dom/input #js {:type "checkbox"
-                                               :id "toggle"
-                                               :checked toggle
-                                               :onClick (fn [_]
-                                                          (cast! this `[(todo/toggle nil)]))})
-                               (dom/label #js {:htmlFor "toggle"} "Toggle"))))))
+            (html
+             [:div {}
+              [:form {}
+               [:label.hide {:htmlFor "search"} "Search"]
+               [:input.input#search {:type "search"}]]
+              [:input {:type "checkbox"
+                       :id "toggle"
+                       :checked toggle
+                       :onClick (fn [_]
+                                  (cast! this `[(todo/toggle nil)]))}]
+              [:label {:htmlFor "toggle"} "Toggle"]]))))
 
 (defn init []
   (println "Start App")

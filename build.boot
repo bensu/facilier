@@ -1,5 +1,5 @@
 (set-env!
- :source-paths    #{"src/cljs" "src/clj" "dev/src"} ;; put dev/src under dev task
+ :source-paths    #{"src/cljs" "src/clj"}
  :resource-paths  #{"resources"}
  :dependencies '[[adzerk/boot-cljs          "1.7.170-3"  :scope "test"]
                  [adzerk/boot-cljs-repl     "0.2.0"      :scope "test"]
@@ -7,11 +7,12 @@
                  [pandeiro/boot-http        "0.6.3"      :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.1-SNAPSHOT" :scope "test"]
                  [org.clojure/clojurescript "1.7.170"]
-                 ;; Dev App
+                 ;; Panel
                  [org.omcljs/om "1.0.0-alpha22" :exclusions [cljsjs/react]]
                  [cljs-react-test "0.1.3-SNAPSHOT" :scope "test"]
                  [prismatic/dommy "1.0.0" :score "test"]
                  [cljsjs/react-with-addons "0.14.3-0" :scope "test"]
+                 [sablono "0.6.0"]
                  ;; Facilier
                  [reloaded.repl "0.2.0"]
                  [com.stuartsierra/component "0.2.3"]
@@ -68,7 +69,7 @@
 
 (deftask development []
   (task-options! cljs {:optimizations :none :source-map true}
-                 reload {:on-jsload 'dev.app/init})
+                 reload {:on-jsload 'facilier.panel/init})
   identity)
 
 (deftask dev

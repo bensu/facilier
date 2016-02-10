@@ -4,7 +4,7 @@
   (:require [cljs.pprint :as pp :refer [pprint]]
             [cljs.reader :as reader]
             [clojure.string :as str]
-            [om.core :as om]
+            [om.next :as om :refer-macros [defui]]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
             [ankha.core :as ankha]
@@ -28,6 +28,25 @@
 (def test-url "http://localhost:3005")
 
 (defonce config (f/start-session! test-url))
+
+(defn read
+  [{:keys [state] :as env} key params]
+  (let [st @state]
+    (if-let [[_ v] (find st key)]
+      {:value v}
+      {:value :not-found})))
+
+(defmulti mutate (fn [_ key _] key))
+
+(defmethod mutate `session/select
+  [{:keys [state]} _ {:keys [id]}]
+  {:value {:keys [:session]}
+   :action #(swap! state assoc :session id)})
+
+(defmethod mutate `session/close
+  [{:keys [state]} _ _]
+  {:value {:keys [:session]}
+   :action #(swap! state assoc :session nil)})
 
 (defonce app-state
   (do
@@ -79,29 +98,32 @@
 (defn display-date [date]
   (.toLocaleString date))
 
-(defn session-view [session owner {:keys [quit-fn]}]
-  (reify
-    om/IRender
-    (render [_]
-      (html
-       (let [{:keys [session/id session/info]} session
-             date (:time/first session)]
-         [:div.session nil
-          [:h5 (str id " ")
-           [:i {:class (status-class (->status session))}]
-           [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn id))}]]
-          [:p "Version Commit: " (:git/commit session)]
-          [:p (full-platform-name info)]
-          [:p (display-date date)]
-          #_[:p "Duration: " duration]
-          (when-let [state (last (:states session))]
-            [:div.state "State:" (om/build ankha/inspector
-                                           (reader/read-string state))])
-          (when-let [error (last (:errors session))]
-            (println error)
-            [:div.state "Error:" (om/build ankha/inspector
-                                           (reader/read-string error))])])))))
+(defui Session
+  om/IQuery
+  (query [_] '[:session])
+  Object
+  (render [this]
+          (html
+           (let [{:keys [session/id session/info] :as session} (om/props this)
+                 date (:time/first session)]
+             [:div.session nil
+              [:h5 (str id " ")
+               [:i {:class (status-class (->status session))}]
+               [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
+                                                        (om/transact! this `[(session/close)]))}]]
+              [:p "Version Commit: " (:git/commit session)]
+              [:p (full-platform-name info)]
+              [:p (display-date date)]
+              #_[:p "Duration: " duration]
+              ;; (when-let [state (last (:states session))]
+              ;;   [:div.state "State:" (om/build ankha/inspector
+              ;;                                  (reader/read-string state))])
+              ;; (when-let [error (last (:errors session))]
+              ;;   [:div.state "Error:" (om/build ankha/inspector
+              ;;                                  (reader/read-string error))])
+              ]))))
 
+(def session-view (om/factory Session))
 
 ;; ======================================================================
 ;; Table
@@ -115,47 +137,54 @@
 (defn display-uuid [uuid]
   (str (apply str (take 8 (str uuid))) "..."))
 
-(defn row [session owner {:keys [click-fn]}]
-  (reify
-    om/IRender
-    (render [_]
-      (let [{:keys [session/id session/info git/commit]} session
-            date (:time/first session)]
-        (html
-         [:tr.session-row {:onClick (fn [_]
-                                      (click-fn id))}
-          [:td.row-left (display-uuid commit)]
-          [:td.row-left (display-uuid id)]
-          [:td (display-date date)]
-          #_[:td.center duration]
-          [:td.center (platform-icons info)]
-          [:td.row-right.center [:i {:class (status-class (->status session))}]]])))))
+(defui Row
+  om/IQuery
+  (query [_] '[:session/id :session/info :git/commit :time/first :errors])
+  Object
+  (render [this]
+          (let [session (om/props this)
+                {:keys [session/id session/info git/commit]} session
+                date (:time/first session)]
+            (html
+             [:tr.session-row {:onClick (fn [_]
+                                          (om/transact! this `[(session/select {:id ~id})]))}
+              [:td.row-left (display-uuid commit)]
+              [:td.row-left (display-uuid id)]
+              [:td (display-date date)]
+              #_[:td.center duration]
+              [:td.center (platform-icons info)]
+              [:td.row-right.center [:i {:class (status-class (->status session))}]]]))))
 
-(defn widget [{:keys [sessions] :as data} owner]
-  (reify
-    om/IRender
-    (render [_]
-      (html
-       [:div.container {}
-        [:div.bar {}
-         [:form {}
-          [:label {:htmlFor "search"} "Search"]
-          [:input#search {:type "search"}]]]
-        (if-let [session-id (:session data)]
-          (om/build session-view (get sessions session-id) {:opts {:quit-fn (fn [_]
-                                                                              (om/update! data :session nil))}})
-          (if (empty? (:sessions data))
-            [:h5 "No sessions to show"]
-            [:div.main {}
-             [:table.session-table.u-full-width {}
-              [:thead title-row]
-              [:tbody (->> (vals (:sessions data))
-                           (sort-by :time/first)
-                           reverse
-                           (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
-                                                                      (om/update! data :session uuid))}})))]]]))]))))
+(def row (om/factory Row))
 
+(defui Widget
+  om/IQuery
+  (query [_] '[:session :sessions])
+  Object
+  (render [this]
+          (let [{:keys [session sessions]} (om/props this)]
+            (html
+             [:div.container {}
+              [:div.bar {}
+               [:form {}
+                [:label {:htmlFor "search"} "Search"]
+                [:input#search {:type "search"}]]]
+              (if-let [session-id session]
+                (session-view (get sessions session-id))
+                (if (empty? sessions)
+                  [:h5 "No sessions to show"]
+                  [:div.main {}
+                   [:table.session-table.u-full-width {}
+                    [:thead title-row]
+                    [:tbody (->> (vals sessions)
+                                 (sort-by :time/first)
+                                 reverse
+                                 (mapv row))]]]))]))))
+
+(def reconciler
+  (om/reconciler {:state app-state
+                  :parser (om/parser {:read read :mutate mutate})}))
 
 (defn init []
   (println "Start App")
-  (om/root widget app-state {:target (. js/document (getElementById "container"))}))
+  (om/add-root! reconciler Widget (. js/document (getElementById "container"))))

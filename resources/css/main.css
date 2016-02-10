@@ -14,6 +14,10 @@ th.row-left {
     padding-left: 1rem;
 }
 
+td.row-left {
+    padding-left: 1rem;
+}
+
 th.row-right {
     padding-right: 1rem;
 }

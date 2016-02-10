@@ -4,17 +4,17 @@
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]))
 
-(defn config [app-name server-url]
+(defn config [server-url]
   {:session/id (random-uuid)
    :session/info (spy/all-info)
-   :url server-url
-   :app-name app-name})
+   :url server-url})
 
 ;; ======================================================================
 ;; HTTP Helpers
 
 (defn ->url [config path]
-  (str (:url config) "/" path "/" (:app-name config)))
+  (println   (str (:url config) "/" path "/" (:session/id config)))
+  (str (:url config) "/" path "/" (:session/id config)))
 
 (defn post! [config path edn]
   (let [url (->url config path)]
@@ -30,12 +30,10 @@
 ;; ======================================================================
 ;; Session
 
-(defn start-session! [app-name server-url]
-  (let [config (config app-name server-url)]
-    (POST (->url config "start")
-          {:params {:session-id (:session/id config)
-                    :timestamp (js/Date.)
-                    :session/info (:session/info config)}})))
+(defn start-session! [server-url]
+  (let [config (config server-url)]
+    (post! config "session" (select-keys config [:session/info]))
+    config))
 
 ;; ======================================================================
 ;; Actions

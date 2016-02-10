@@ -2,3 +2,4 @@
 /.nrepl-port
 /out
 /test/resources/predictive/states
+/test/resources/sessions

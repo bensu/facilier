@@ -25,97 +25,97 @@
    :headers {"Content-Type" "application/edn"}
    :body (pr-str error)})
 
-;; ======================================================================
-;; Logic
+(defn handle [params f]
+  (try
+    (ok-response (f params))
+    (catch Exception e
+      (error-response e))))
 
-(def root-dir "test/resources/predictive/states")
+(defn handle! [params f]
+  (try
+    (f params)
+    (ok-response {:ok (:session-id params)})
+    (catch Exception e
+      (error-response e))))
+
+;; ======================================================================
+;; Session
+
+(def root-dir "test/resources/sessions")
 
 (defn session->file [session-id]
   (io/file root-dir (str session-id ".edn")))
 
-(defn save-state! [session-id state]
+(defn start-session! [session]
+  (let [f (session->file (:session-id session))]
+    (spit f session)))
+
+(defn get-session [session-id]
   (let [f (session->file session-id)]
-    (if (.exists f)
-      (let [states (edn/read-string (slurp f))]
-        (spit f (conj states state)))
-      (spit f [state]))))
+    (assert (.exists f))
+    (edn/read-string (slurp f))))
 
-(defn get-state [session-id]
-  (edn/read-string (slurp (session->file session-id))))
+(defn update-session! [session-id f]
+  (let [file (session->file session-id)
+        session (get-session session-id)]
+    (spit file (f session))))
 
-(defn delete-state! [session-id]
+(defn delete-session! [session-id]
   (let [f (session->file session-id)]
     (when (.exists f)
       (.delete f))))
 
-;; ======================================================================
-;; HTTP Service
+(defroutes session-routes
+  (GET "/session/:id" [id] (handle id get-session))
+  (POST "/session/:id" {:keys [params]} (handle! params start-session!))
+  (DELETE "/session/:id" [id] (handle! id delete-session!)))
 
 ;; ======================================================================
 ;; States
 
-(defn handle-state! [params]
-  (let [{:keys [session-id state]} params]
-    (try
-      (save-state! session-id state)
-      (ok-response {:ok state})
-      (catch Exception e
-        (error-response e)))))
+(defn save-state! [{:keys [session-id state]}]
+  (update-session! session-id
+                   (fn [s]
+                     (update s :states #(conj % state)))))
 
-(defn return-state [params]
-  (try
-    (ok-response (get-state (:session-id params)))
-    (catch Exception e
-      (error-response e))))
-
-(defn handle-delete-state! [{:keys [session-id]}]
-  (try
-    (delete-state! session-id)
-    (ok-response {:ok "deleted"})
-    (catch Exception e
-      (error-response e))))
+(defn get-states [session-id]
+  (:states (get-session session-id)))
 
 (defroutes state-routes
-  (GET "/state/:session-id" {:keys [params]} (return-state params))
-  (POST "/state/:session-id" {:keys [params]} (handle-state! params))
-  (DELETE "/state/:session-id" {:keys [params]} (handle-delete-state! params)))
+  (GET "/state/:session-id" [session-id] (handle session-id get-states))
+  (POST "/state/:session-id" {:keys [params]} (handle! params save-state!)))
 
 ;; ======================================================================
 ;; Actions
 
-(defn return-actions [{:keys [session-id]}]
-  ["actions"])
+(defn get-actions [session-id]
+  (:actions (get-session session-id)))
 
-(defn handle-action! [{:keys [session-id]}]
-  (println "handle action"))
-
-(defn handle-delete-actions! [{:keys [session-id]}]
-  (println "delete-actions"))
+(defn save-action! [{:keys [session-id action]}]
+  (update-session! session-id
+                   (fn [s] (update s :action #(conj % action)))))
 
 (defroutes action-routes
-  (GET "/action/:session-id" {:keys [params]} (return-actions params))
-  (POST "/action/:session-id" {:keys [params]} (handle-action! params))
-  (DELETE "/action/:session-id" {:keys [params]} (handle-delete-actions! params)))
+  (GET "/action/:session-id" [session-id] (handle session-id get-actions))
+  (POST "/action/:session-id" {:keys [params]} (handle! params save-action!)))
 
-(defroutes app-routes
-  (GET "/" [] (ok-response "<h1>YES</h1>"))
- )
+;; ======================================================================
+;; Routes
 
-;; FIX: replace with wrap-cors
-(defn add-cors [f]
-  (fn [req]
-    (update (f req)
-            :headers
-            #(merge % {"Access-Control-Allow-Origin" "*"
-                       "Access-Control-Allow-Methods" "POST, GET, OPTIONS"
-                       "Access-Control-Allow-Headers" "Content-Type"}))))
+(def all-routes
+  (routes           state-routes session-routes
+
+          action-routes
+          (route/not-found "<h1>Page not found</h1>")))
+
+;; ======================================================================
+;; Middleware
 
 (def app-handler
-  (-> state-routes
+  (-> all-routes
       wrap-edn-params
-      add-cors
-      #_(wrap-cors :access-control-allow-origin [#".*"]
-                   :access-control-allow-methods [:get :put :post :delete])
+      (wrap-cors :access-control-allow-origin [#"http://localhost:3000/*"]
+                 :access-control-allow-methods [:get :put :post :delete])
       handler/site))
 
 (defn start-jetty [handler port]

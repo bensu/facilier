@@ -31,7 +31,7 @@
                                              :state {:some "stuff"}})))]
     (zipmap (map :uuid sessions) sessions)))
 
-(defonce config (f/config "dev" "http://localhost:3005"))
+(defonce config (f/start-session! "http://localhost:3005"))
 
 (defonce app-state
   (f/log-states! config

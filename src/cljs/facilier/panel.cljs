@@ -7,7 +7,6 @@
             [om.next :as om :refer-macros [defui]]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
-            [ankha.core :as ankha]
             [facilier.client :as f]))
 
 (enable-console-print!)

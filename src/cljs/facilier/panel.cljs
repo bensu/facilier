@@ -136,9 +136,11 @@
             [:div.main {}
              [:table.session-table.u-full-width {}
               [:thead title-row]
-              [:tbody (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
-                                                                 (om/update! data :session uuid))}})
-                            (vals (:sessions data)))]]]))]))))
+              [:tbody (->> (vals (:sessions data))
+                           (sort-by :time/first)
+                           reverse
+                           (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
+                                                                      (om/update! data :session uuid))}})))]]]))]))))
 
 
 (defn init []

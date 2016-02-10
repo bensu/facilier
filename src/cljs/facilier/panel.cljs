@@ -15,7 +15,7 @@
 (def info
   {:browser :chrome
    :browser-version "42.0.2311.135"
-   :platform :windows
+   :platform :mac
    :platform-version ""
    :engine :webkit
    :engine-version "537.36"
@@ -48,8 +48,14 @@
 (defn os-class [os]
   (str "fa icon-cell fa-" (if (= :mac os) "apple" (name os))))
 
-(defn browser-name [info]
-  (str (str/capitalize (name (:browser info))) " " (:version info)))
+(defn- big-name [k]
+  {:pre [(keyword? k)]}
+  (str/capitalize (name k)))
+
+(defn full-platform-name [info]
+  (let [{:keys [browser browser-version platform platform-version]} info]
+    (str (big-name browser) " "browser-version
+         " on " (big-name platform) " " platform-version)))
 
 (defn status-class [status]
   {:pre [(keyword? status)]}
@@ -70,7 +76,7 @@
          [:div.session nil
           [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn uuid))}]
           [:p "Session id: " uuid]
-          [:p "Platform: " (browser-name info)]
+          [:p "Platform: " (full-platform-name info)]
           [:p "Time: " (str date)]
           [:p "Duration: " duration]
           [:p "Status: " [:i {:class (status-class status)}]]

@@ -29,6 +29,8 @@
 
 (defonce config (f/start-session! test-url))
 
+
+
 (defonce app-state
   (do
     (GET (str test-url "/session")
@@ -61,6 +63,11 @@
     (str (big-name browser) " "browser-version
          " on " (big-name platform) " " platform-version)))
 
+(defn ->status [session]
+  (if (empty? (:errors session))
+    :ok
+    :error))
+
 (defn status-class [status]
   {:pre [(keyword? status)]}
   (str "fa icon-cell fa-" (case status :ok "check" :error "ban")))
@@ -79,17 +86,22 @@
     om/IRender
     (render [_]
       (html
-       (let [{:keys [session/id session/info session/status]} session
+       (let [{:keys [session/id session/info]} session
              date (:time/first session)]
          [:div.session nil
           [:h5 (str id " ")
-           [:i {:class (status-class status)}]
+           [:i {:class (status-class (->status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn id))}]]
           [:p (full-platform-name info)]
           [:p (display-date date)]
           #_[:p "Duration: " duration]
-          [:div.state "State:" (om/build ankha/inspector
-                                         (reader/read-string (last (:states session))))]])))))
+          (when-let [state (last (:states session))]
+            [:div.state "State:" (om/build ankha/inspector
+                                           (reader/read-string state))])
+          (when-let [error (last (:errors session))]
+            (println error)
+            [:div.state "Error:" (om/build ankha/inspector
+                                           (reader/read-string error))])])))))
 
 
 ;; ======================================================================
@@ -107,7 +119,7 @@
   (reify
     om/IRender
     (render [_]
-      (let [{:keys [session/id session/status session/info]} session
+      (let [{:keys [session/id session/info]} session
             date (:time/first session)]
         (html
          [:tr.session-row {:onClick (fn [_]
@@ -116,7 +128,7 @@
           [:td (display-date date)]
           #_[:td.center duration]
           [:td.center (platform-icons info)]
-          [:td.row-right.center [:i {:class (status-class status)}]]])))))
+          [:td.row-right.center [:i {:class (status-class (->status session))}]]])))))
 
 (defn widget [{:keys [sessions] :as data} owner]
   (reify

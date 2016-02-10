@@ -111,12 +111,23 @@
   (POST "/action/:session-id" {:keys [params]} (handle! params save-action!)))
 
 ;; ======================================================================
+;; Errors
+
+(defn save-error! [{:keys [session-id error]}]
+  (update-session! session-id
+                   (fn [s] (update s :errors #(conj % error)))))
+
+(defroutes error-routes
+  (POST "/error/:session-id" {:keys [params]} (handle! params save-error!)))
+
+;; ======================================================================
 ;; Routes
 
 (def all-routes
   (routes session-routes
           state-routes
           action-routes
+          error-routes
           (route/not-found "<h1>Page not found</h1>")))
 
 ;; ======================================================================
@@ -125,7 +136,7 @@
 (def app-handler
   (-> all-routes
       wrap-edn-params
-      (wrap-cors :access-control-allow-origin [#"*"]
+      (wrap-cors :access-control-allow-origin [#".*"]
                  :access-control-allow-methods [:get :put :post :delete])
       handler/site))
 

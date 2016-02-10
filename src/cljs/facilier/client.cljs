@@ -2,7 +2,8 @@
   "Helpers to log states from the client"
   (:require [cljs.reader :as reader]
             [ajax.core :refer [GET POST]]
-            [maxwell.spy :as spy]))
+            [maxwell.spy :as spy]
+            [maxwell.kaos :as kaos]))
 
 (defn config [server-url]
   {:session/id (random-uuid)
@@ -34,7 +35,13 @@
 (defn start-session! [server-url]
   (let [config (config server-url)]
     (post! config "session" (select-keys config [:session/info]))
+    (kaos/watch-errors! :facilier/client
+                        (fn [error]
+                          (post! config "error" {:error (pr-str (dissoc error :error))}))
+                        {:silence? false})
     config))
+
+
 
 ;; ======================================================================
 ;; Actions

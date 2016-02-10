@@ -29,8 +29,6 @@
 
 (defonce config (f/start-session! test-url))
 
-
-
 (defonce app-state
   (do
     (GET (str test-url "/session")
@@ -92,6 +90,7 @@
           [:h5 (str id " ")
            [:i {:class (status-class (->status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn id))}]]
+          [:p "Version Commit: " (:git/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]
           #_[:p "Duration: " duration]
@@ -109,7 +108,8 @@
 
 (def title-row
   [:tr
-   [:th.row-left "Session Id"] [:th "Time"] #_[:th "Duration"]
+   [:th.row-left "Version"]
+   [:th "Session Id"] [:th "Time"] #_[:th "Duration"]
    [:th.center "Platform"] [:th.center.row-right "Status"]])
 
 (defn display-uuid [uuid]
@@ -119,11 +119,12 @@
   (reify
     om/IRender
     (render [_]
-      (let [{:keys [session/id session/info]} session
+      (let [{:keys [session/id session/info git/commit]} session
             date (:time/first session)]
         (html
          [:tr.session-row {:onClick (fn [_]
                                       (click-fn id))}
+          [:td.row-left (display-uuid commit)]
           [:td.row-left (display-uuid id)]
           [:td (display-date date)]
           #_[:td.center duration]

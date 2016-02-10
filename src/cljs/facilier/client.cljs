@@ -1,5 +1,6 @@
 (ns facilier.client
   "Helpers to log states from the client"
+  (:require-macros [facilier.helper :as helper])
   (:require [cljs.reader :as reader]
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
@@ -8,6 +9,7 @@
 (defn config [server-url]
   {:session/id (random-uuid)
    :session/info (spy/all-info)
+   :git/commit (helper/git-commit)
    :url server-url})
 
 ;; ======================================================================
@@ -34,7 +36,7 @@
 
 (defn start-session! [server-url]
   (let [config (config server-url)]
-    (post! config "session" (select-keys config [:session/info]))
+    (post! config "session" (select-keys config [:git/commit :session/info]))
     (kaos/watch-errors! :facilier/client
                         (fn [error]
                           (post! config "error" {:error (pr-str (dissoc error :error))}))

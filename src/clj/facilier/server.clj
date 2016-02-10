@@ -103,8 +103,8 @@
 ;; Routes
 
 (def all-routes
-  (routes           state-routes session-routes
-
+  (routes session-routes
+          state-routes
           action-routes
           (route/not-found "<h1>Page not found</h1>")))
 

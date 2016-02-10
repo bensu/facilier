@@ -20,8 +20,10 @@
                  [ring-cors "0.1.7"]
                  [fogus/ring-edn "0.3.0"]
                  [compojure "1.4.0"]
+                 [clj-http "1.1.0"]
+                 ;; Facilier Client
                  [cljs-ajax "0.3.14"]
-                 [clj-http "1.1.0"]])
+                 [maxwell "0.1.0-SNAPSHOT"]])
 
 (require
  '[adzerk.boot-cljs      :refer [cljs]]

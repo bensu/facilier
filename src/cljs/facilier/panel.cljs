@@ -31,8 +31,10 @@
                                              :state {:some "stuff"}})))]
     (zipmap (map :uuid sessions) sessions)))
 
+(defonce config (f/config "dev" "http://localhost:3005"))
+
 (defonce app-state
-  (f/log-states! "dev"
+  (f/log-states! config
    (atom {:text "Something to say"
           :session nil
           :sessions sessions

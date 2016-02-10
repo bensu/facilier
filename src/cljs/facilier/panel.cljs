@@ -1,7 +1,7 @@
 (ns facilier.panel
   "Application to test and develop Facilier itself"
   (:import [goog.date DateTime])
-  (:require [cljs.pprint :as pp :refer [pprint]]
+  (:require [cljs.pprint :as pp]
             [cljs.reader :as reader]
             [clojure.string :as str]
             [om.next :as om :refer-macros [defui]]
@@ -98,14 +98,21 @@
 (defn display-date [date]
   (.toLocaleString date))
 
+(defn ->code [edn]
+  [:pre [:code (with-out-str (pp/pprint edn))]])
+
 (defui Session
   om/IQuery
   (query [_] '[:session])
   Object
+  (initLocalState [_]
+                  {:state? false
+                   :error? false})
   (render [this]
           (html
            (let [{:keys [session/id session/info] :as session} (om/props this)
-                 date (:time/first session)]
+                 date (:time/first session)
+                 {:keys [state? error?]} (om/get-state this)]
              [:div.session nil
               [:h5 (str id " ")
                [:i {:class (status-class (->status session))}]
@@ -115,13 +122,15 @@
               [:p (full-platform-name info)]
               [:p (display-date date)]
               #_[:p "Duration: " duration]
-              ;; (when-let [state (last (:states session))]
-              ;;   [:div.state "State:" (om/build ankha/inspector
-              ;;                                  (reader/read-string state))])
-              ;; (when-let [error (last (:errors session))]
-              ;;   [:div.state "Error:" (om/build ankha/inspector
-              ;;                                  (reader/read-string error))])
-              ]))))
+              (when-let [state (last (:states session))]
+                ;; (if state?)
+                [:div.state  "State:" (->code (reader/read-string state))]
+                ;; [:div.state {:onClick (fn [_]
+                ;;                         (om/update-state! this update :state? not))}
+                ;;  [:i.fa.fa-chevron-right] "State"]
+                )
+              (when-let [error (last (:errors session))]
+                [:div.state "Error:" (->code  (reader/read-string error))])]))))
 
 (def session-view (om/factory Session))
 

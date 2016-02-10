@@ -21,7 +21,8 @@
     (POST url
           {:params (assoc edn
                           :session-id (:session/id config)
-                          :timestamp (js/Date.))
+                          :session/status :ok
+                          :browser/time (js/Date.))
            :format :edn
            :response-format :edn
            :handler (fn [_] (println "Ok " url))
@@ -74,6 +75,7 @@
   (post! config "state" {:state (pr-str state)}))
 
 (defn log-states! [config ref]
+  (post-state! config @ref)
   (add-watch ref ::states
              (fn [_ _ old-state new-state]
                (when-not (= old-state new-state)

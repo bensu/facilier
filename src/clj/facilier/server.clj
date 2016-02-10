@@ -25,11 +25,11 @@
    :headers {"Content-Type" "application/edn"}
    :body (pr-str error)})
 
-(defn handle [params f]
-  (try
-    (ok-response (f params))
-    (catch Exception e
-      (error-response e))))
+(defmacro handle [& body]
+  `(try
+     (ok-response (do ~@body))
+     (catch Exception e#
+       (error-response e#))))
 
 (defn handle! [params f]
   (try
@@ -47,18 +47,28 @@
   (io/file root-dir (str session-id ".edn")))
 
 (defn start-session! [session]
-  (let [f (session->file (:session-id session))]
-    (spit f session)))
+  (let [id (:session-id session)
+        t (java.util.Date.)
+        f (session->file id)]
+    (spit f (assoc session
+                   :session/id id
+                   :time/first t :time/last t
+                   :states [] :actions [] :events [] :errors []))))
 
 (defn get-session [session-id]
   (let [f (session->file session-id)]
     (assert (.exists f))
     (edn/read-string (slurp f))))
 
+(defn get-all-sessions []
+  {:sessions (->> (file-seq (io/file root-dir))
+                  (filter #(.isFile %))
+                  (map (comp edn/read-string slurp)))})
+
 (defn update-session! [session-id f]
   (let [file (session->file session-id)
         session (get-session session-id)]
-    (spit file (f session))))
+    (spit file (assoc (f session) :time/last (java.util.Date.)))))
 
 (defn delete-session! [session-id]
   (let [f (session->file session-id)]
@@ -66,9 +76,10 @@
       (.delete f))))
 
 (defroutes session-routes
-  (GET "/session/:id" [id] (handle id get-session))
-  (POST "/session/:id" {:keys [params]} (handle! params start-session!))
-  (DELETE "/session/:id" [id] (handle! id delete-session!)))
+  (GET "/session" [] (handle (get-all-sessions)))
+  (GET "/session/:session-id" [id] (handle (get-session id)))
+  (POST "/session/:session-id" {:keys [params]} (handle! params start-session!))
+  (DELETE "/session/:session-id" [id] (handle! id delete-session!)))
 
 ;; ======================================================================
 ;; States
@@ -82,7 +93,7 @@
   (:states (get-session session-id)))
 
 (defroutes state-routes
-  (GET "/state/:session-id" [session-id] (handle session-id get-states))
+  (GET "/state/:session-id" [session-id] (handle (get-states session-id)))
   (POST "/state/:session-id" {:keys [params]} (handle! params save-state!)))
 
 ;; ======================================================================
@@ -96,7 +107,7 @@
                    (fn [s] (update s :action #(conj % action)))))
 
 (defroutes action-routes
-  (GET "/action/:session-id" [session-id] (handle session-id get-actions))
+  (GET "/action/:session-id" [session-id] (handle (get-actions session-id)))
   (POST "/action/:session-id" {:keys [params]} (handle! params save-action!)))
 
 ;; ======================================================================
@@ -114,7 +125,7 @@
 (def app-handler
   (-> all-routes
       wrap-edn-params
-      (wrap-cors :access-control-allow-origin [#"http://localhost:3000/*"]
+      (wrap-cors :access-control-allow-origin [#"*"]
                  :access-control-allow-methods [:get :put :post :delete])
       handler/site))
 

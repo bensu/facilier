@@ -1,9 +1,12 @@
 (ns facilier.panel
   "Application to test and develop Facilier itself"
+  (:import [goog.date DateTime])
   (:require [cljs.pprint :as pp :refer [pprint]]
+            [cljs.reader :as reader]
             [clojure.string :as str]
             [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
+            [ajax.core :refer [GET]]
             [ankha.core :as ankha]
             [facilier.client :as f]))
 
@@ -22,23 +25,22 @@
    :screen [1535 789]
    :agent "Mozilla/5.0 (X11; Linux x86_64) ..."})
 
-(def sessions
-  (let [sessions (take 10 (repeatedly (fn [] {:uuid (str (random-uuid))
-                                             :date (js/Date.)
-                                             :duration "20 min"
-                                             :info info
-                                             :status :ok
-                                             :state {:some "stuff"}})))]
-    (zipmap (map :uuid sessions) sessions)))
+(def test-url "http://localhost:3005")
 
-(defonce config (f/start-session! "http://localhost:3005"))
+(defonce config (f/start-session! test-url))
 
 (defonce app-state
-  (f/log-states! config
-   (atom {:text "Something to say"
-          :session nil
-          :sessions sessions
-          :toggle true})))
+  (do
+    (GET (str test-url "/session")
+         {:format :edn
+          :response-format :edn
+          :handler (fn [{:keys [sessions]}]
+                     (swap! app-state #(assoc % :sessions
+                                              (zipmap (map :session/id sessions)
+                                                      sessions))))})
+    (f/log-states! config
+                   (atom {:session nil
+                          :sessions []}))))
 
 ;; ======================================================================
 ;; HTML
@@ -69,20 +71,25 @@
    " "
    [:i {:class (browser-class (:browser info))}]])
 
+(defn display-date [date]
+  (.toLocaleString date))
+
 (defn session-view [session owner {:keys [quit-fn]}]
   (reify
     om/IRender
     (render [_]
       (html
-       (let [{:keys [uuid date duration info status]} session]
+       (let [{:keys [session/id session/info session/status]} session
+             date (:time/first session)]
          [:div.session nil
-          [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn uuid))}]
-          [:p "Session id: " uuid]
-          [:p "Platform: " (full-platform-name info)]
-          [:p "Time: " (str date)]
-          [:p "Duration: " duration]
-          [:p "Status: " [:i {:class (status-class status)}]]
-          [:div.state "State:" (om/build ankha/inspector (:state session))]])))))
+          [:h5 (str id " ")
+           [:i {:class (status-class status)}]
+           [:i.fa.fa-times.u-pull-right {:onClick (fn [_] (quit-fn id))}]]
+          [:p (full-platform-name info)]
+          [:p (display-date date)]
+          #_[:p "Duration: " duration]
+          [:div.state "State:" (om/build ankha/inspector
+                                         (reader/read-string (last (:states session))))]])))))
 
 
 ;; ======================================================================
@@ -90,20 +97,24 @@
 
 (def title-row
   [:tr
-   [:th.row-left "Session Id"] [:th "Time"] [:th "Duration"]
-   [:th "Platform"] [:th.row-right "Status"]])
+   [:th.row-left "Session Id"] [:th "Time"] #_[:th "Duration"]
+   [:th.center "Platform"] [:th.center.row-right "Status"]])
+
+(defn display-uuid [uuid]
+  (str (apply str (take 8 (str uuid))) "..."))
 
 (defn row [session owner {:keys [click-fn]}]
   (reify
     om/IRender
     (render [_]
-      (let [{:keys [uuid date duration info status]} session]
+      (let [{:keys [session/id session/status session/info]} session
+            date (:time/first session)]
         (html
          [:tr.session-row {:onClick (fn [_]
-                                      (click-fn uuid))}
-          [:td.row-left uuid]
-          [:td (str date)]
-          [:td.center duration]
+                                      (click-fn id))}
+          [:td.row-left (display-uuid id)]
+          [:td (display-date date)]
+          #_[:td.center duration]
           [:td.center (platform-icons info)]
           [:td.row-right.center [:i {:class (status-class status)}]]])))))
 
@@ -120,12 +131,14 @@
         (if-let [session-id (:session data)]
           (om/build session-view (get sessions session-id) {:opts {:quit-fn (fn [_]
                                                                               (om/update! data :session nil))}})
-          [:div.main {}
-           [:table.session-table.u-full-width {}
-            [:thead title-row]
-            [:tbody (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
-                                                               (om/update! data :session uuid))}})
-                          (vals (:sessions data)))]]])]))))
+          (if (empty? (:sessions data))
+            [:h5 "No sessions to show"]
+            [:div.main {}
+             [:table.session-table.u-full-width {}
+              [:thead title-row]
+              [:tbody (mapv #(om/build row % {:opts {:click-fn (fn [uuid]
+                                                                 (om/update! data :session uuid))}})
+                            (vals (:sessions data)))]]]))]))))
 
 
 (defn init []

@@ -14,20 +14,6 @@
 ;; ======================================================================
 ;; Data
 
-(def info
-  {:browser :chrome
-   :browser-version "42.0.2311.135"
-   :platform :mac
-   :platform-version ""
-   :engine :webkit
-   :engine-version "537.36"
-   :screen [1535 789]
-   :agent "Mozilla/5.0 (X11; Linux x86_64) ..."})
-
-(def test-url "http://localhost:3005")
-
-(defonce facilier-config (f/start-session! test-url))
-
 (defn read
   [{:keys [state] :as env} key params]
   (let [st @state]
@@ -47,18 +33,31 @@
   {:value {:keys [:session]}
    :action #(swap! state assoc :session nil)})
 
+(defmethod mutate `sessions/load
+  [{:keys [state]} _ {:keys [sessions]}]
+  {:value {:keys [sessions]}
+   :action #(swap! state assoc :sessions (zipmap (map :session/id sessions)
+                                                 sessions))})
+
 (defonce app-state
-  (do
-    (GET (str test-url "/session")
-         {:format :edn
-          :response-format :edn
-          :handler (fn [{:keys [sessions]}]
-                     (swap! app-state #(assoc % :sessions
-                                              (zipmap (map :session/id sessions)
-                                                      sessions))))})
-    (f/log-states! facilier-config
-                   (atom {:session nil
-                          :sessions []}))))
+  (atom {:session nil
+         :sessions []}))
+
+(def test-url "http://localhost:3005")
+
+(defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
+
+(def reconciler
+  (om/reconciler {:state app-state
+                  :parser (om/parser {:read read :mutate mutate})}))
+
+(defonce start!
+  (do (GET (str test-url "/session")
+           {:format :edn
+            :response-format :edn
+            :handler (fn [{:keys [sessions]}]
+                       (om/transact! reconciler
+                                     `[(sessions/load {:sessions ~sessions})]))})))
 
 ;; ======================================================================
 ;; HTML
@@ -191,14 +190,11 @@
                   [:div.main {}
                    [:table.session-table.u-full-width {}
                     [:thead title-row]
+                    ;; FIX: Reshaping code!
                     [:tbody (->> (vals sessions)
                                  (sort-by :time/first)
                                  reverse
                                  (mapv row))]]]))]))))
-
-(def reconciler
-  (om/reconciler {:state app-state
-                  :parser (om/parser {:read read :mutate mutate})}))
 
 (defn init []
   (println "Start App")

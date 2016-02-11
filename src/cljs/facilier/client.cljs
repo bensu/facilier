@@ -32,20 +32,6 @@
            :error-handler (fn [e] (println "Request failed " url " " (pr-str e)))})))
 
 ;; ======================================================================
-;; Session
-
-(defn start-session! [server-url]
-  (let [config (config server-url)]
-    (post! config "session" (select-keys config [:git/commit :session/info]))
-    (kaos/watch-errors! :facilier/client
-                        (fn [error]
-                          (post! config "error" {:error (pr-str (dissoc error :error))}))
-                        {:silence? false})
-    config))
-
-
-
-;; ======================================================================
 ;; Actions
 
 (defn post-action! [config action]
@@ -83,9 +69,23 @@
   (post! config "state" {:state (pr-str state)}))
 
 (defn log-states! [config ref]
-  (post-state! config @ref)
   (add-watch ref ::states
              (fn [_ _ old-state new-state]
                (when-not (= old-state new-state)
                  (post-state! config new-state))))
   ref)
+
+;; ======================================================================
+;; Session
+
+(defn start-session! [server-url ref {:keys [log-state?]}]
+  (let [config (config server-url)]
+    (post! config "session" (assoc (select-keys config [:git/commit :session/info])
+                                   :state/init @ref))
+    (when log-state?
+      (log-states! config ref))
+    (kaos/watch-errors! :facilier/client
+                        (fn [error]
+                          (post! config "error" {:error (pr-str (dissoc error :error))}))
+                        {:silence? false})
+    config))

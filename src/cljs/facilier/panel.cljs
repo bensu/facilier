@@ -26,7 +26,7 @@
 
 (def test-url "http://localhost:3005")
 
-(defonce config (f/start-session! test-url))
+(defonce facilier-config (f/start-session! test-url))
 
 (defn read
   [{:keys [state] :as env} key params]
@@ -56,7 +56,7 @@
                      (swap! app-state #(assoc % :sessions
                                               (zipmap (map :session/id sessions)
                                                       sessions))))})
-    (f/log-states! config
+    (f/log-states! facilier-config
                    (atom {:session nil
                           :sessions []}))))
 
@@ -121,15 +121,18 @@
               [:p (full-platform-name info)]
               [:p (display-date date)]
               #_[:p "Duration: " duration]
+              (when-let [error (last (:errors session))]
+                [:div.state "Error:" (->code  (reader/read-string error))])
+              (when-not (empty? (:actions session))
+                [:div.state "Actions: "
+                 (->code (mapv reader/read-string (:actions session)))])
               (when-let [state (last (:states session))]
                 ;; (if state?)
                 [:div.state  "State:" (->code (reader/read-string state))]
                 ;; [:div.state {:onClick (fn [_]
                 ;;                         (om/update-state! this update :state? not))}
                 ;;  [:i.fa.fa-chevron-right] "State"]
-                )
-              (when-let [error (last (:errors session))]
-                [:div.state "Error:" (->code  (reader/read-string error))])]))))
+                )]))))
 
 (def session-view (om/factory Session))
 
@@ -166,6 +169,10 @@
 (def row (om/factory Row))
 
 (defui Widget
+  om/ITxIntercept
+  (tx-intercept [this tx]
+                (f/post-action! facilier-config tx)
+                (om/transact! this tx))
   om/IQuery
   (query [_] '[:session :sessions])
   Object

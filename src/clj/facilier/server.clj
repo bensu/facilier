@@ -57,7 +57,7 @@
 
 (defn get-session [session-id]
   (let [f (session->file session-id)]
-    (assert (.exists f))
+    (assert (.exists f) (str "Asked for session " session-id " but it's not here"))
     (edn/read-string (slurp f))))
 
 (defn get-all-sessions []
@@ -104,7 +104,7 @@
 
 (defn save-action! [{:keys [session-id action]}]
   (update-session! session-id
-                   (fn [s] (update s :action #(conj % action)))))
+                   (fn [s] (update s :actions #(conj % action)))))
 
 (defroutes action-routes
   (GET "/action/:session-id" [session-id] (handle (get-actions session-id)))

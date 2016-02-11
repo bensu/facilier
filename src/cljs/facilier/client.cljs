@@ -49,7 +49,6 @@
 ;; Actions
 
 (defn post-action! [config action]
-  (assert (some? (:session/id config)) "The *session-id* was not initialized")
   (post! config "action" {:action (pr-str action)}))
 
 (defn get-actions [config test-fn]

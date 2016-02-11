@@ -86,7 +86,7 @@
 
 (defn status-class [status]
   {:pre [(keyword? status)]}
-  (str "fa icon-cell fa-" (case status :ok "check" :error "ban")))
+  (str "fa fa-circle " (case status :ok "green" :error "red")))
 
 (defn platform-icons [info]
   [:span

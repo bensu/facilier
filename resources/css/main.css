@@ -33,3 +33,12 @@ td.row-right {
 .center {
     text-align: center;
 }
+
+/* status */
+.green {
+    color: #1C5A0F;
+}
+
+.red {
+    color: #8E2C36;
+}

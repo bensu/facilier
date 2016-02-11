@@ -24,7 +24,6 @@
     (POST url
           {:params (assoc edn
                           :session-id (:session/id config)
-                          :session/status :ok
                           :browser/time (js/Date.))
            :format :edn
            :response-format :edn

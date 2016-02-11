@@ -48,8 +48,13 @@
 (defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
 
 (def reconciler
-  (om/reconciler {:state app-state
-                  :parser (om/parser {:read read :mutate mutate})}))
+  (let [r (om/reconciler {:state app-state
+                          :parser (om/parser {:read read :mutate mutate})})]
+    (specify! r
+      om/ITxIntercept
+      (tx-intercept [this tx]
+        (f/post-action! facilier-config tx)
+        (om/transact! this tx)))))
 
 (defonce start!
   (do (GET (str test-url "/session")
@@ -78,14 +83,9 @@
     (str (big-name browser) " "browser-version
          " on " (big-name platform) " " platform-version)))
 
-(defn ->status [session]
-  (if (empty? (:errors session))
-    :ok
-    :error))
-
 (defn status-class [status]
   {:pre [(keyword? status)]}
-  (str "fa fa-circle " (case status :ok "green" :error "red")))
+  (str "fa fa-circle " (case status :status/ok "green" :status/error "red")))
 
 (defn platform-icons [info]
   [:span
@@ -113,7 +113,7 @@
                  {:keys [state? error?]} (om/get-state this)]
              [:div.session nil
               [:h5 (str id " ")
-               [:i {:class (status-class (->status session))}]
+               [:i {:class (status-class (:session/status session))}]
                [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
                                                         (om/transact! this `[(session/close)]))}]]
               [:p "Version Commit: " (:git/commit session)]
@@ -149,11 +149,11 @@
 
 (defui Row
   om/IQuery
-  (query [_] '[:session/id :session/info :git/commit :time/first :errors])
+  (query [_] '[:session/id :session/info :git/commit :time/first :session/status])
   Object
   (render [this]
           (let [session (om/props this)
-                {:keys [session/id session/info git/commit]} session
+                {:keys [session/id session/info git/commit session/status]} session
                 date (:time/first session)]
             (html
              [:tr.session-row {:onClick (fn [_]
@@ -163,15 +163,12 @@
               [:td (display-date date)]
               #_[:td.center duration]
               [:td.center (platform-icons info)]
-              [:td.row-right.center [:i {:class (status-class (->status session))}]]]))))
+              [:td.row-right.center [:i {:class (status-class status)}]]]))))
 
 (def row (om/factory Row))
 
 (defui Widget
-  om/ITxIntercept
-  (tx-intercept [this tx]
-                (f/post-action! facilier-config tx)
-                (om/transact! this tx))
+
   om/IQuery
   (query [_] '[:session :sessions])
   Object

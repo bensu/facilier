@@ -63,7 +63,12 @@
 (defn get-all-sessions []
   {:sessions (->> (file-seq (io/file root-dir))
                   (filter #(.isFile %))
-                  (map (comp edn/read-string slurp)))})
+                  (mapv #(let [s (edn/read-string (slurp %))]
+                           (-> s
+                               (assoc :session/status (if (zero? (count (:events s)))
+                                                        :status/ok
+                                                        :status/error))
+                               (dissoc :states :actions :events)))))})
 
 (defn update-session! [session-id f]
   (let [file (session->file session-id)

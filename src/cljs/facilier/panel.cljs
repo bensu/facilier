@@ -77,17 +77,17 @@
 
 (defmethod mutate `session/select
   [{:keys [state]} _ {:keys [id]}]
-  {:value {:keys [:session]}
-   :action #(swap! state assoc :session id)})
+  {:value {:keys [:session/current]}
+   :action #(swap! state assoc :session/current id)})
 
 (defmethod mutate `session/close
   [{:keys [state]} _ _]
-  {:value {:keys [:session]}
-   :action #(swap! state assoc :session nil)})
+  {:value {:keys [:session/current]}
+   :action #(swap! state assoc :session/current nil)})
 
 (defmethod mutate `sessions/load
   [{:keys [state]} _ {:keys [sessions]}]
-  {:value {:keys [sessions]}
+  {:value {:keys [:session/list]}
    :action #(swap! state assoc :sessions (zipmap (map :session/id sessions)
                                                  sessions))})
 
@@ -139,8 +139,13 @@
   [:pre [:code (with-out-str (pp/pprint edn))]])
 
 (defui Session
+  static om/Ident
+  (ident [_ {:keys [session/id]}]
+         [:session/by-id id])
   static om/IQuery
-  (query [_] '[:session])
+  (query [_] '[:session/id :session/info :session/status
+               :time/first :git/commit
+               :states :actions :errors])
   Object
   (initLocalState [_]
                   {:state? false
@@ -172,7 +177,7 @@
                 ;;  [:i.fa.fa-chevron-right] "State"]
                 )]))))
 
-(def session-view (om/factory Session))
+(def session-view (om/factory Session {:keyfn :session/id}))
 
 ;; ======================================================================
 ;; Table

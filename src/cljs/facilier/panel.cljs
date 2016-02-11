@@ -16,6 +16,14 @@
 
 (defmulti read om/dispatch)
 
+(defmethod read :default
+  [{:keys [state] :as env} key params]
+  (println "read default" key)
+  (let [st @state]
+    (if-let [[_ v] (find st key)]
+      {:value v}
+      {:value :not-found})))
+
 (defmethod read :session
   [{:keys [state ast] :as env} k {:keys [query]}]
   (let [v (get @state k {})]
@@ -26,7 +34,10 @@
              {:server ast}))))
 
 (defmethod read :session/list
-  [{:keys [state ast]} k {:keys [n]}]
+  [{:keys [state ast]} k {:keys [n] :as params}]
+  (println "Session list")
+  (println ast)
+  (println "params" params)
   (let [v (get @state k)]
     (merge {:value (->> (take n (vals v))
                         (sort-by :time/first)
@@ -35,15 +46,8 @@
            (when (nil? v)
              {:server ast}))))
 
-(defmethod read :default
-  [{:keys [state] :as env} key params]
-  (let [st @state]
-    (if-let [[_ v] (find st key)]
-      {:value v}
-      {:value :not-found})))
-
 (defonce app-state
-  (atom {:session/current nil
+  (atom {:session/current :session/none
          :session/list nil}))
 
 (def test-url "http://localhost:3005")
@@ -211,29 +215,41 @@
 
 (def row (om/factory Row))
 
-(defui Widget
+(defui Table
   static om/IQueryParams
   (params [_] {:n 20})
   static om/IQuery
-  (query [_] '[:session/current (:session/list {:n ?n})])
+  (query [_] '[(:session/list {:n ?n})])
   Object
   (render [this]
-          (let [{:keys [session/current session/list]} (om/props this)]
+          (html
+           (let [props (om/props this)]
+             (if (empty? (:session/list props))
+               [:h5 "No sessions to show"]
+               [:div.main {}
+                [:table.session-table.u-full-width {}
+                 [:thead title-row]
+                 [:tbody (mapv row (:session/list props))]]])))))
+
+(def table (om/factory Table))
+
+(defui Widget
+  static om/IQuery
+  (query [_] (vec (concat (om/get-query Table) [:session/current])))
+  Object
+  (render [this]
+          (let [{:keys [session/current] :as props} (om/props this)]
             (html
              [:div.container {}
               [:div.bar {}
                [:form {}
                 [:label {:htmlFor "search"} "Search"]
                 [:input#search {:type "search"}]]]
-              (if-let [session-id current]
-                (session-view (get list session-id))
-                (if (empty? list)
-                  [:h5 "No sessions to show"]
-                  [:div.main {}
-                   [:table.session-table.u-full-width {}
-                    [:thead title-row]
-                    [:tbody (mapv row list)]]]))]))))
+              (if (not= :session/none current)
+                (session-view current)
+                (table props))]))))
 
 (defn init []
   (println "Start App")
-  (om/add-root! reconciler Widget (. js/document (getElementById "container"))))
+  (om/add-root! reconciler Widget (. js/document (getElementById "container")))
+  (println "Done"))

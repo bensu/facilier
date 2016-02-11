@@ -14,12 +14,64 @@
 ;; ======================================================================
 ;; Data
 
-(defn read
+(defmulti read om/dispatch)
+
+(defmethod read :session
+  [{:keys [state ast] :as env} k {:keys [query]}]
+  (let [v (get @state k {})]
+    (merge {:value v}
+           (when (or (not (contains? v :states))
+                     (not (contains? v :actions))
+                     (not (contains? v :errors)))
+             {:server ast}))))
+
+(defmethod read :session/list
+  [{:keys [state ast]} k {:keys [n]}]
+  (let [v (get @state k)]
+    (merge {:value (->> (take n (vals v))
+                        (sort-by :time/first)
+                        reverse
+                        vec)}
+           (when (nil? v)
+             {:server ast}))))
+
+(defmethod read :default
   [{:keys [state] :as env} key params]
   (let [st @state]
     (if-let [[_ v] (find st key)]
       {:value v}
       {:value :not-found})))
+
+(defonce app-state
+  (atom {:session/current nil
+         :session/list nil}))
+
+(def test-url "http://localhost:3005")
+
+(defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
+
+(defmulti request (fn [k params cb] k))
+
+(defmethod request :session/list
+  [_ _ cb]
+  (GET (str test-url "/session")
+       {:format :edn
+        :response-format :edn
+        :handler (fn [{:keys [sessions]}]
+                   (cb {:session/list (zipmap (map :session/id sessions)
+                                              sessions)}))}))
+
+(defmethod request :session
+  [_ {:keys [session/id]} cb]
+  (GET (str test-url "/session/" id)
+       {:format :edn
+        :response-format :edn
+        :handler cb}))
+
+(defn send [{:keys [server]} cb]
+  (when server
+    (let [k (get-in (om/query->ast server) [:children 0 :key])]
+      (request k {} cb))))
 
 (defmulti mutate (fn [_ key _] key))
 
@@ -39,30 +91,17 @@
    :action #(swap! state assoc :sessions (zipmap (map :session/id sessions)
                                                  sessions))})
 
-(defonce app-state
-  (atom {:session nil
-         :sessions []}))
-
-(def test-url "http://localhost:3005")
-
-(defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
 
 (def reconciler
   (let [r (om/reconciler {:state app-state
-                          :parser (om/parser {:read read :mutate mutate})})]
+                          :parser (om/parser {:read read :mutate mutate})
+                          :send send
+                          :remotes [:remote :server]})]
     (specify! r
       om/ITxIntercept
       (tx-intercept [this tx]
         (f/post-action! facilier-config tx)
         (om/transact! this tx)))))
-
-(defonce start!
-  (do (GET (str test-url "/session")
-           {:format :edn
-            :response-format :edn
-            :handler (fn [{:keys [sessions]}]
-                       (om/transact! reconciler
-                                     `[(sessions/load {:sessions ~sessions})]))})))
 
 ;; ======================================================================
 ;; HTML
@@ -100,7 +139,7 @@
   [:pre [:code (with-out-str (pp/pprint edn))]])
 
 (defui Session
-  om/IQuery
+  static om/IQuery
   (query [_] '[:session])
   Object
   (initLocalState [_]
@@ -148,7 +187,7 @@
   (str (apply str (take 8 (str uuid))) "..."))
 
 (defui Row
-  om/IQuery
+  static om/IQuery
   (query [_] '[:session/id :session/info :git/commit :time/first :session/status])
   Object
   (render [this]
@@ -168,30 +207,27 @@
 (def row (om/factory Row))
 
 (defui Widget
-
-  om/IQuery
-  (query [_] '[:session :sessions])
+  static om/IQueryParams
+  (params [_] {:n 20})
+  static om/IQuery
+  (query [_] '[:session/current (:session/list {:n ?n})])
   Object
   (render [this]
-          (let [{:keys [session sessions]} (om/props this)]
+          (let [{:keys [session/current session/list]} (om/props this)]
             (html
              [:div.container {}
               [:div.bar {}
                [:form {}
                 [:label {:htmlFor "search"} "Search"]
                 [:input#search {:type "search"}]]]
-              (if-let [session-id session]
-                (session-view (get sessions session-id))
-                (if (empty? sessions)
+              (if-let [session-id current]
+                (session-view (get list session-id))
+                (if (empty? list)
                   [:h5 "No sessions to show"]
                   [:div.main {}
                    [:table.session-table.u-full-width {}
                     [:thead title-row]
-                    ;; FIX: Reshaping code!
-                    [:tbody (->> (vals sessions)
-                                 (sort-by :time/first)
-                                 reverse
-                                 (mapv row))]]]))]))))
+                    [:tbody (mapv row list)]]]))]))))
 
 (defn init []
   (println "Start App")

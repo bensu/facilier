@@ -18,26 +18,21 @@
 
 (defmethod read :default
   [{:keys [state] :as env} key params]
-  (println "read default" key)
   (let [st @state]
     (if-let [[_ v] (find st key)]
       {:value v}
       {:value :not-found})))
 
-(defmethod read :session
-  [{:keys [state ast] :as env} k {:keys [query]}]
-  (let [v (get @state k {})]
-    (merge {:value v}
-           (when (or (not (contains? v :states))
-                     (not (contains? v :actions))
-                     (not (contains? v :errors)))
-             {:server ast}))))
+(defmethod read :session/current
+  [{:keys [state ast] :as env} k _]
+  (let [st @state]
+    (if-let [id (get st k)]
+      (let [ss (get st id)]
+        {:value ss})
+      {:value nil})))
 
 (defmethod read :session/list
   [{:keys [state ast]} k {:keys [n] :as params}]
-  (println "Session list")
-  (println ast)
-  (println "params" params)
   (let [v (get @state k)]
     (merge {:value (->> (take n (vals v))
                         (sort-by :time/first)
@@ -47,7 +42,7 @@
              {:server ast}))))
 
 (defonce app-state
-  (atom {:session/current :session/none
+  (atom {:session/current nil
          :session/list nil}))
 
 (def test-url "http://localhost:3005")
@@ -65,22 +60,25 @@
                    (cb {:session/list (zipmap (map :session/id sessions)
                                               sessions)}))}))
 
-(defmethod request :session
+(defmethod request :session/current
   [_ {:keys [session/id]} cb]
-  (GET (str test-url "/session/" id)
-       {:format :edn
-        :response-format :edn
-        :handler cb}))
+  (when id
+    (GET (str test-url "/session/" id)
+         {:format :edn
+          :response-format :edn
+          :handler cb})))
 
 (defn send [{:keys [server]} cb]
   (when server
-    (let [k (get-in (om/query->ast server) [:children 0 :key])]
-      (request k {} cb))))
+    (let [child-query (get-in (om/query->ast server) [:children 0])
+          k (:dispatch-key child-query)
+          p (:params child-query)]
+      (request k p cb))))
 
 (defmulti mutate (fn [_ key _] key))
 
 (defmethod mutate `session/select
-  [{:keys [state]} _ {:keys [id]}]
+  [{:keys [state]} _ {:keys [session/id]}]
   {:value {:keys [:session/current]}
    :action #(swap! state assoc :session/current id)})
 
@@ -105,7 +103,7 @@
       om/ITxIntercept
       (tx-intercept [this tx]
         (f/post-action! facilier-config tx)
-        (om/transact! this tx)))))
+        tx))))
 
 ;; ======================================================================
 ;; HTML
@@ -142,46 +140,31 @@
 (defn ->code [edn]
   [:pre [:code (with-out-str (pp/pprint edn))]])
 
-(defui Session
-  static om/Ident
-  (ident [_ {:keys [session/id]}]
-         [:session/by-id id])
-  static om/IQuery
-  (query [_] '[:session/id :session/info :session/status
-               :time/first :git/commit
-               :states :actions :errors])
-  Object
-  (initLocalState [_]
-                  {:state? false
-                   :error? false})
-  (render [this]
-          (html
-           (let [{:keys [session/id session/info] :as session} (om/props this)
-                 date (:time/first session)
-                 {:keys [state? error?]} (om/get-state this)]
-             [:div.session nil
-              [:h5 (str id " ")
-               [:i {:class (status-class (:session/status session))}]
-               [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
-                                                        (om/transact! this `[(session/close)]))}]]
-              [:p "Version Commit: " (:git/commit session)]
-              [:p (full-platform-name info)]
-              [:p (display-date date)]
-              #_[:p "Duration: " duration]
-              (when-let [error (last (:errors session))]
-                [:div.state "Error:" (->code  (reader/read-string error))])
-              (when-not (empty? (:actions session))
-                [:div.state "Actions: "
-                 (->code (mapv reader/read-string (:actions session)))])
-              (when-let [state (last (:states session))]
-                ;; (if state?)
-                [:div.state  "State:" (->code (reader/read-string state))]
-                ;; [:div.state {:onClick (fn [_]
-                ;;                         (om/update-state! this update :state? not))}
-                ;;  [:i.fa.fa-chevron-right] "State"]
-                )]))))
-
-(def session-view (om/factory Session {:keyfn :session/id}))
+(defn session-view [this session]
+  (html
+   (let [{:keys [session/id session/info]} session
+         date (:time/first session)]
+     [:div.session nil
+      [:h5 (str id " ")
+       [:i {:class (status-class (:session/status session))}]
+       [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
+                                                (om/transact! this `[(session/close)]))}]]
+      [:p "Version Commit: " (:git/commit session)]
+      [:p (full-platform-name info)]
+      [:p (display-date date)]
+      #_[:p "Duration: " duration]
+      (when-let [error (last (:errors session))]
+        [:div.state "Error:" (->code  (reader/read-string error))])
+      (when-not (empty? (:actions session))
+        [:div.state "Actions: "
+         (->code (mapv reader/read-string (:actions session)))])
+      (when-let [state (last (:states session))]
+        ;; (if state?)
+        [:div.state  "State:" (->code (reader/read-string state))]
+        ;; [:div.state {:onClick (fn [_]
+        ;;                         (om/update-state! this update :state? not))}
+        ;;  [:i.fa.fa-chevron-right] "State"]
+        )])))
 
 ;; ======================================================================
 ;; Table
@@ -195,61 +178,50 @@
 (defn display-uuid [uuid]
   (str (apply str (take 8 (str uuid))) "..."))
 
-(defui Row
-  static om/IQuery
-  (query [_] '[:session/id :session/info :git/commit :time/first :session/status])
-  Object
-  (render [this]
-          (let [session (om/props this)
-                {:keys [session/id session/info git/commit session/status]} session
-                date (:time/first session)]
-            (html
-             [:tr.session-row {:onClick (fn [_]
-                                          (om/transact! this `[(session/select {:id ~id})]))}
-              [:td.row-left (display-uuid commit)]
-              [:td.row-left (display-uuid id)]
-              [:td (display-date date)]
-              #_[:td.center duration]
-              [:td.center (platform-icons info)]
-              [:td.row-right.center [:i {:class (status-class status)}]]]))))
+(defn row [this session]
+  (let [{:keys [session/id session/info git/commit session/status]} session
+        date (:time/first session)]
+    (html
+     [:tr.session-row
+      {:onClick (fn [_]
+                  (om/transact! this
+                                `[(session/select {:session/id ~id})]))}
+      [:td.row-left (display-uuid commit)]
+      [:td.row-left (display-uuid id)]
+      [:td (display-date date)]
+      #_[:td.center duration]
+      [:td.center (platform-icons info)]
+      [:td.row-right.center [:i {:class (status-class status)}]]])))
 
-(def row (om/factory Row))
+(defn table [this props]
+  (html
+   (if (empty? (:session/list props))
+     [:h5 "No sessions to show"]
+     [:div.main {}
+      [:table.session-table.u-full-width {}
+       [:thead title-row]
+       [:tbody (mapv (partial row this) (:session/list props))]]])))
 
-(defui Table
+(defui Widget
   static om/IQueryParams
   (params [_] {:n 20})
   static om/IQuery
-  (query [_] '[(:session/list {:n ?n})])
+  (query [_] '[:session/current (:session/list {:n ?n})])
   Object
   (render [this]
-          (html
-           (let [props (om/props this)]
-             (if (empty? (:session/list props))
-               [:h5 "No sessions to show"]
-               [:div.main {}
-                [:table.session-table.u-full-width {}
-                 [:thead title-row]
-                 [:tbody (mapv row (:session/list props))]]])))))
-
-(def table (om/factory Table))
-
-(defui Widget
-  static om/IQuery
-  (query [_] (vec (concat (om/get-query Table) [:session/current])))
-  Object
-  (render [this]
-          (let [{:keys [session/current] :as props} (om/props this)]
+          (let [{:keys [session/current session/list] :as props} (om/props this)]
             (html
              [:div.container {}
-              [:div.bar {}
-               [:form {}
-                [:label {:htmlFor "search"} "Search"]
-                [:input#search {:type "search"}]]]
-              (if (not= :session/none current)
-                (session-view current)
-                (table props))]))))
+              [:h2 "Facilier"]
+              #_[:div.bar {}
+                 [:form {}
+                  [:label {:htmlFor "search"} "Search"]
+                  [:input#search {:type "search"}]]]
+              (println "current" current)
+              (if (nil? current)
+                (table this {:session/list list})
+                (session-view this (get list current)))]))))
 
 (defn init []
   (println "Start App")
-  (om/add-root! reconciler Widget (. js/document (getElementById "container")))
-  (println "Done"))
+  (om/add-root! reconciler Widget (. js/document (getElementById "container"))))

@@ -4,7 +4,7 @@
   (:require [cljs.pprint :as pp]
             [cljs.reader :as reader]
             [clojure.string :as str]
-            [om.next :as om :refer-macros [defui]]
+            [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
             [facilier.client :as f]))
@@ -14,88 +14,42 @@
 ;; ======================================================================
 ;; Data
 
-(defmulti read om/dispatch)
-
-(defmethod read :default
-  [{:keys [state] :as env} key params]
-  (let [st @state]
-    (if-let [[_ v] (find st key)]
-      {:value v}
-      {:value :not-found})))
-
-(defmethod read :session/current
-  [{:keys [state ast] :as env} k _]
-  {:value (get @state k)})
-
-(defmethod read :session/map
-  [{:keys [state ast] :as env} k _]
-  (let [v (get @state k)]
-    (merge {:value v}
-           (when (nil? v)
-             {:server ast}))))
-
-(defmethod read :session/full
-  [{:keys [state ast] :as env} k _]
-  (let [st @state
-        current (:session/current st)
-        full (:session/full st)
-        v (if (= current (:session/id full))
-            full
-            (get-in st [:session/map current]))]
-    (merge {:value v}
-           (when (and (some? current)
-                      (nil? (:errors v)))
-             (println "read session/full")
-             (println (assoc ast :params {:id current}))
-             {:server (assoc ast :params {:id current})}))))
-
-(defmethod read :session/list
-  [{:keys [state ast]} k {:keys [n] :as params}]
-  (let [v (get @state :session/map)]
-    (println ast)
-    (merge {:value (->> (take n (vals v))
-                        (sort-by :time/first)
-                        reverse
-                        vec)}
-           (when (nil? v)
-             {:server ast}))))
+(def ^:dynamic raise!)
 
 (defonce app-state
   (atom {:session/current nil
-         :session/map nil}))
+         :session/all {}}))
 
 (def test-url "http://localhost:3005")
 
 (defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
 
-(defmulti request (fn [k params cb] k))
+(defmulti request! (fn [k params cb] k))
 
-(defmethod request :session/map
+(defmethod request! :session/all
   [_ _ cb]
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
         :handler (fn [{:keys [sessions]}]
-                   (cb {:session/map (zipmap (map :session/id sessions)
+                   (cb {:session/all (zipmap (map :session/id sessions)
                                              sessions)}))}))
 
-(defmethod request :session/full
-  [_ {:keys [id]} cb]
-  (println "request session" id)
+(defmethod request! :session/full
+  [_ {:keys [session/id]} cb]
+  (println "REQUEST")
   (when (some? id)
     (GET (str test-url "/session/" id)
          {:format :edn
           :response-format :edn
           :handler (fn [{:keys [session]}]
-                     (println "got back" session)
                      (cb {:session/full session}))})))
 
-(defmethod request :session/list
+(defmethod request! :session/list
   [_ _ cb]
-  (println "session list")
-  (request :session/map _ cb))
+  (request! :session/all _ cb))
 
-(defmethod request :session/current
+(defmethod request! :session/current
   [_ {:keys [session/id]} cb]
   (when id
     (GET (str test-url "/session/" id)
@@ -103,47 +57,23 @@
           :response-format :edn
           :handler cb})))
 
-(defn send [{:keys [server] :as all} cb]
-  (println "send all" all)
-  (when server
-    (println "send " server)
-    (let [server (if (vector? (first server))
-                   (first server)
-                   server)]
-      (let [child-query (get-in (om/query->ast server) [:children 0])
-            k (:dispatch-key child-query)
-            p (:params child-query)]
-        (request k p cb)))))
+(defmulti step (fn [_ [k _]] k))
 
-(defmulti mutate (fn [_ key _] key))
+(defmethod step :session/select
+  [state [_ {:keys [session/id]}]]
+  (assoc state :session/current id))
 
-(defmethod mutate `session/select
-  [{:keys [state]} _ {:keys [session/id]}]
-  {:value {:keys [:session/current :session/full]}
-   :action #(swap! state assoc :session/current id)})
+(defmethod step :session/close
+  [state _]
+  (assoc state :session/current nil))
 
-(defmethod mutate `session/close
-  [{:keys [state]} _ _]
-  {:value {:keys [:session/current]}
-   :action #(swap! state assoc :session/current nil)})
+(defmethod step :session/load
+  [state [_ {:keys [session/all]}]]
+  (update state :session/all #(merge % all)))
 
-(defmethod mutate `sessions/load
-  [{:keys [state]} _ {:keys [sessions]}]
-  {:value {:keys [:session/list]}
-   :action #(swap! state assoc :sessions (zipmap (map :session/id sessions)
-                                                 sessions))})
-
-
-(def reconciler
-  (let [r (om/reconciler {:state app-state
-                          :parser (om/parser {:read read :mutate mutate})
-                          :send send
-                          :remotes [:remote :server]})]
-    (specify! r
-      om/ITxIntercept
-      (tx-intercept [this tx]
-        (f/post-action! facilier-config tx)
-        tx))))
+(defmethod step :session/load-one
+  [state [_ session]]
+  (update state :session/all #(assoc % (:session/id session) session)))
 
 ;; ======================================================================
 ;; HTML
@@ -180,31 +110,40 @@
 (defn ->code [edn]
   [:pre [:code (with-out-str (pp/pprint edn))]])
 
-(defn session-view [this session]
-  (html
-   (let [{:keys [session/id session/info]} session
-         date (:time/first session)]
-     [:div.session nil
-      [:h5 (str id " ")
-       [:i {:class (status-class (:session/status session))}]
-       [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
-                                                (om/transact! this `[(session/close)]))}]]
-      [:p "Version Commit: " (:git/commit session)]
-      [:p (full-platform-name info)]
-      [:p (display-date date)]
-      #_[:p "Duration: " duration]
-      (when-let [error (last (:errors session))]
-        [:div.state "Error:" (->code  (reader/read-string error))])
-      (when-not (empty? (:actions session))
-        [:div.state "Actions: "
-         (->code (mapv reader/read-string (:actions session)))])
-      (when-let [state (last (:states session))]
-        ;; (if state?)
-        [:div.state  "State:" (->code (reader/read-string state))]
-        ;; [:div.state {:onClick (fn [_]
-        ;;                         (om/update-state! this update :state? not))}
-        ;;  [:i.fa.fa-chevron-right] "State"]
-        )])))
+(defn session-view [session owner]
+  (reify
+    om/IWillMount
+    (will-mount [_]
+      (when-not (contains? session :state)
+        (request! :session/full session
+                  (fn [{:keys [session/full]}]
+                    (raise! [:session/load-one full])))))
+    om/IRender
+    (render [_]
+      (html
+       (let [{:keys [session/id session/info]} session
+             date (:time/first session)]
+         [:div.session nil
+          [:h5 (str id " ")
+           [:i {:class (status-class (:session/status session))}]
+           [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
+                                                    (raise! [:session/close nil]))}]]
+          [:p "Version Commit: " (:git/commit session)]
+          [:p (full-platform-name info)]
+          [:p (display-date date)]
+          #_[:p "Duration: " duration]
+          (when-let [error (last (:errors session))]
+            [:div.state "Error:" (->code  (reader/read-string error))])
+          (when-not (empty? (:actions session))
+            [:div.state "Actions: "
+             (->code (mapv reader/read-string (:actions session)))])
+          (when-let [state (last (:states session))]
+            ;; (if state?)
+            [:div.state  "State:" (->code (reader/read-string state))]
+            ;; [:div.state {:onClick (fn [_]
+            ;;                         (om/update-state! this update :state? not))}
+            ;;  [:i.fa.fa-chevron-right] "State"]
+            )])))))
 
 ;; ======================================================================
 ;; Table
@@ -218,51 +157,70 @@
 (defn display-uuid [uuid]
   (str (apply str (take 8 (str uuid))) "..."))
 
-(defn row [this session]
-  (let [{:keys [session/id session/info git/commit session/status]} session
-        date (:time/first session)]
-    (html
-     [:tr.session-row
-      {:onClick (fn [_]
-                  (om/transact! this
-                                `[(session/select {:session/id ~id})
-                                  :session/current]))}
-      [:td.row-left (display-uuid commit)]
-      [:td.row-left (display-uuid id)]
-      [:td (display-date date)]
-      #_[:td.center duration]
-      [:td.center (platform-icons info)]
-      [:td.row-right.center [:i {:class (status-class status)}]]])))
+(defn row [session owner]
+  (reify
+    om/IRender
+    (render [_]
+      (let [{:keys [session/id session/info git/commit session/status]} session
+            date (:time/first session)]
+        (assert (some? date) (pr-str session))
+        (html
+         [:tr.session-row
+          {:onClick (fn [_]
+                      (raise! [:session/select {:session/id id}]))}
+          [:td.row-left (display-uuid commit)]
+          [:td.row-left (display-uuid id)]
+          [:td (display-date date)]
+          #_[:td.center duration]
+          [:td.center (platform-icons info)]
+          [:td.row-right.center [:i {:class (status-class status)}]]])))))
 
-(defn table [this {:keys [session/list]}]
-  (html
-   (if (empty? list)
-     [:h5 "No sessions to show"]
-     [:div.main {}
-      [:table.session-table.u-full-width {}
-       [:thead title-row]
-       [:tbody (into-array (mapv (partial row this) list))]]])))
+(defn table [sessions owner]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       [:div.main {}
+        [:table.session-table.u-full-width {}
+         [:thead title-row]
+         [:tbody (mapv #(om/build row % {:key :session/id}) sessions)]]]))))
 
-(defui Widget
-  static om/IQueryParams
-  (params [_] {:n 20})
-  static om/IQuery
-  (query [_] '[:session/map (:session/list {:n ?n})
-               :session/current :session/full])
-  Object
-  (render [this]
-          (let [{:keys [session/current session/list] :as props} (om/props this)]
-            (html
-             [:div.container {}
-              [:h2 "Facilier"]
-              #_[:div.bar {}
-                 [:form {}
-                  [:label {:htmlFor "search"} "Search"]
-                  [:input#search {:type "search"}]]]
-              (if (nil? current)
-                (table this {:session/list list})
-                (session-view this (:session/full props)))]))))
+(defn widget [data owner]
+  (reify
+    om/IWillMount
+    (will-mount [_]
+      (set! raise! (fn [action]
+                     (om/transact! data #(step % action))))
+      (when (empty? (:session/all data))
+        (request! :session/all nil
+                 (fn [d]
+                   (om/transact! data
+                                 #(step % [:session/load d]))))))
+    om/IRender
+    (render [this]
+      (let [{:keys [session/current session/all]} data]
+        (html
+         [:div.container {}
+          [:h2 "Facilier"]
+          #_[:div.bar {}
+             [:form {}
+              [:label {:htmlFor "search"} "Search"]
+              [:input#search {:type "search"}]]]
+          (cond
+            (some? current)
+            (om/build session-view (get (:session/all data) current))
+
+            (empty? all)
+            [:h5 "No sessions to show"]
+
+            :else
+            (om/build table (->> (vals all)
+                                 (sort-by :time/first)
+                                 reverse
+                                 vec)))])))))
 
 (defn init []
   (println "Start App")
-  (om/add-root! reconciler Widget (. js/document (getElementById "container"))))
+  (om/root widget
+           app-state
+           {:target (. js/document (getElementById "container"))}))

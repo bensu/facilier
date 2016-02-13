@@ -55,19 +55,23 @@
                    :time/first t :time/last t
                    :states [] :actions [] :events [] :errors []))))
 
+(defn status [s]
+  (if (zero? (count (:errors s)))
+    :status/ok
+    :status/error))
+
 (defn get-session [id]
   (let [f (session->file id)]
     (assert (.exists f) (str "Asked for session " id " but it's not here"))
-    (edn/read-string (slurp f))))
+    (let [s (edn/read-string (slurp f))]
+      (assoc s :session/status (status s)))))
 
 (defn get-all-sessions []
   {:sessions (->> (file-seq (io/file root-dir))
                   (filter #(.isFile %))
                   (mapv #(let [s (edn/read-string (slurp %))]
                            (-> s
-                               (assoc :session/status (if (zero? (count (:events s)))
-                                                        :status/ok
-                                                        :status/error))
+                               (assoc :session/status (status s))
                                (dissoc :states :actions :errors :events)))))})
 
 (defn update-session! [session-id f]

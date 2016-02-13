@@ -55,9 +55,9 @@
                    :time/first t :time/last t
                    :states [] :actions [] :events [] :errors []))))
 
-(defn get-session [session-id]
-  (let [f (session->file session-id)]
-    (assert (.exists f) (str "Asked for session " session-id " but it's not here"))
+(defn get-session [id]
+  (let [f (session->file id)]
+    (assert (.exists f) (str "Asked for session " id " but it's not here"))
     (edn/read-string (slurp f))))
 
 (defn get-all-sessions []
@@ -68,7 +68,7 @@
                                (assoc :session/status (if (zero? (count (:events s)))
                                                         :status/ok
                                                         :status/error))
-                               (dissoc :states :actions :events)))))})
+                               (dissoc :states :actions :errors :events)))))})
 
 (defn update-session! [session-id f]
   (let [file (session->file session-id)
@@ -82,9 +82,10 @@
 
 (defroutes session-routes
   (GET "/session" [] (handle (get-all-sessions)))
-  (GET "/session/:session-id" [id] (handle (get-session id)))
+  (GET "/session/:session-id" [session-id]
+       (handle {:session (get-session session-id)}))
   (POST "/session/:session-id" {:keys [params]} (handle! params start-session!))
-  (DELETE "/session/:session-id" [id] (handle! id delete-session!)))
+  (DELETE "/session/:session-id" [session-id] (handle! session-id delete-session!)))
 
 ;; ======================================================================
 ;; States

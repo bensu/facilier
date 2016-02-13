@@ -27,7 +27,7 @@
                           :browser/time (js/Date.))
            :format :edn
            :response-format :edn
-           :handler (fn [_] (println "Ok " url))
+           :handler (fn [_] (println "Ok" url))
            :error-handler (fn [e] (println "Request failed " url " " (pr-str e)))})))
 
 ;; ======================================================================

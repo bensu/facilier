@@ -25,15 +25,37 @@
 
 (defmethod read :session/current
   [{:keys [state ast] :as env} k _]
-  (let [st @state]
-    (if-let [id (get st k)]
-      (let [ss (get st id)]
-        {:value ss})
-      {:value nil})))
+  {:value (get @state k)})
+
+(defmethod read :session/map
+  [{:keys [state ast] :as env} k _]
+  (let [v (get @state k)]
+    (merge {:value v}
+           (when (nil? v)
+             {:server ast}))))
+
+(defmethod read :session/full
+  [{:keys [state ast] :as env} k _]
+  (let [st @state
+        current (:session/current st)
+        full (:session/full st)
+        v (if (= current (:session/id full))
+            full
+            (get-in st [:session/map current]))]
+    (println "read session/full " v)
+    (println "request?"
+     (and (some? current)
+          (nil? (:errors v))))
+    (merge {:value v}
+           (when (and (some? current)
+                      (nil? (:errors v)))
+             (println (type ast))
+             (println (assoc ast :params {:session/id current}))
+             {:server (assoc ast :params {:session/id current})}))) )
 
 (defmethod read :session/list
   [{:keys [state ast]} k {:keys [n] :as params}]
-  (let [v (get @state k)]
+  (let [v (get @state :session/map)]
     (merge {:value (->> (take n (vals v))
                         (sort-by :time/first)
                         reverse
@@ -43,7 +65,7 @@
 
 (defonce app-state
   (atom {:session/current nil
-         :session/list nil}))
+         :session/map nil}))
 
 (def test-url "http://localhost:3005")
 
@@ -51,14 +73,30 @@
 
 (defmulti request (fn [k params cb] k))
 
-(defmethod request :session/list
+(defmethod request :session/map
   [_ _ cb]
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
         :handler (fn [{:keys [sessions]}]
-                   (cb {:session/list (zipmap (map :session/id sessions)
-                                              sessions)}))}))
+                   (cb {:session/map (zipmap (map :session/id sessions)
+                                             sessions)}))}))
+
+(defmethod request :session/full
+  [_ {:keys [session/id]} cb]
+  (println "request session" id)
+  (when (some? id)
+    (GET (str test-url "/session/" id)
+         {:format :edn
+          :response-format :edn
+          :handler (fn [{:keys [session]}]
+                     (println "got back" session)
+                     (cb {:session/full session}))})))
+
+(defmethod request :session/list
+  [_ _ cb]
+  (println "session list")
+  (request :session/map _ cb))
 
 (defmethod request :session/current
   [_ {:keys [session/id]} cb]
@@ -79,7 +117,7 @@
 
 (defmethod mutate `session/select
   [{:keys [state]} _ {:keys [session/id]}]
-  {:value {:keys [:session/current]}
+  {:value {:keys [:session/current :session/full]}
    :action #(swap! state assoc :session/current id)})
 
 (defmethod mutate `session/close
@@ -185,7 +223,8 @@
      [:tr.session-row
       {:onClick (fn [_]
                   (om/transact! this
-                                `[(session/select {:session/id ~id})]))}
+                                `[(session/select {:session/id ~id})
+                                  :session/current]))}
       [:td.row-left (display-uuid commit)]
       [:td.row-left (display-uuid id)]
       [:td (display-date date)]
@@ -193,20 +232,21 @@
       [:td.center (platform-icons info)]
       [:td.row-right.center [:i {:class (status-class status)}]]])))
 
-(defn table [this props]
+(defn table [this {:keys [session/list]}]
   (html
-   (if (empty? (:session/list props))
+   (if (empty? list)
      [:h5 "No sessions to show"]
      [:div.main {}
       [:table.session-table.u-full-width {}
        [:thead title-row]
-       [:tbody (mapv (partial row this) (:session/list props))]]])))
+       [:tbody (into-array (mapv (partial row this) list))]]])))
 
 (defui Widget
   static om/IQueryParams
   (params [_] {:n 20})
   static om/IQuery
-  (query [_] '[:session/current (:session/list {:n ?n})])
+  (query [_] '[:session/map (:session/list {:n ?n})
+               :session/current :session/full])
   Object
   (render [this]
           (let [{:keys [session/current session/list] :as props} (om/props this)]
@@ -217,10 +257,9 @@
                  [:form {}
                   [:label {:htmlFor "search"} "Search"]
                   [:input#search {:type "search"}]]]
-              (println "current" current)
               (if (nil? current)
                 (table this {:session/list list})
-                (session-view this (get list current)))]))))
+                (session-view this (:session/full props)))]))))
 
 (defn init []
   (println "Start App")

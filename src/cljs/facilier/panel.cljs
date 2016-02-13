@@ -42,20 +42,17 @@
         v (if (= current (:session/id full))
             full
             (get-in st [:session/map current]))]
-    (println "read session/full " v)
-    (println "request?"
-     (and (some? current)
-          (nil? (:errors v))))
     (merge {:value v}
            (when (and (some? current)
                       (nil? (:errors v)))
-             (println (type ast))
-             (println (assoc ast :params {:session/id current}))
-             {:server (assoc ast :params {:session/id current})}))) )
+             (println "read session/full")
+             (println (assoc ast :params {:id current}))
+             {:server (assoc ast :params {:id current})}))))
 
 (defmethod read :session/list
   [{:keys [state ast]} k {:keys [n] :as params}]
   (let [v (get @state :session/map)]
+    (println ast)
     (merge {:value (->> (take n (vals v))
                         (sort-by :time/first)
                         reverse
@@ -83,7 +80,7 @@
                                              sessions)}))}))
 
 (defmethod request :session/full
-  [_ {:keys [session/id]} cb]
+  [_ {:keys [id]} cb]
   (println "request session" id)
   (when (some? id)
     (GET (str test-url "/session/" id)
@@ -106,12 +103,17 @@
           :response-format :edn
           :handler cb})))
 
-(defn send [{:keys [server]} cb]
+(defn send [{:keys [server] :as all} cb]
+  (println "send all" all)
   (when server
-    (let [child-query (get-in (om/query->ast server) [:children 0])
-          k (:dispatch-key child-query)
-          p (:params child-query)]
-      (request k p cb))))
+    (println "send " server)
+    (let [server (if (vector? (first server))
+                   (first server)
+                   server)]
+      (let [child-query (get-in (om/query->ast server) [:children 0])
+            k (:dispatch-key child-query)
+            p (:params child-query)]
+        (request k p cb)))))
 
 (defmulti mutate (fn [_ key _] key))
 

@@ -28,16 +28,18 @@
 
 (defmethod request! :session/all
   [_ _ cb]
+  (println "request all")
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
         :handler (fn [{:keys [sessions]}]
-                   (cb {:session/all (zipmap (map :session/id sessions)
-                                             sessions)}))}))
+                   (cb {:session/all (-> (map :session/id sessions)
+                                         (zipmap sessions)
+                                         (dissoc (str (:session/id facilier-config))))}))}))
 
 (defmethod request! :session/full
   [_ {:keys [session/id]} cb]
-  (println "REQUEST")
+  (println "request session")
   (when (some? id)
     (GET (str test-url "/session/" id)
          {:format :edn
@@ -48,14 +50,6 @@
 (defmethod request! :session/list
   [_ _ cb]
   (request! :session/all _ cb))
-
-(defmethod request! :session/current
-  [_ {:keys [session/id]} cb]
-  (when id
-    (GET (str test-url "/session/" id)
-         {:format :edn
-          :response-format :edn
-          :handler cb})))
 
 (defmulti step (fn [_ [k _]] k))
 
@@ -163,7 +157,6 @@
     (render [_]
       (let [{:keys [session/id session/info git/commit session/status]} session
             date (:time/first session)]
-        (assert (some? date) (pr-str session))
         (html
          [:tr.session-row
           {:onClick (fn [_]
@@ -190,6 +183,7 @@
     om/IWillMount
     (will-mount [_]
       (set! raise! (fn [action]
+                     (f/log-action! facilier-config action)
                      (om/transact! data #(step % action))))
       (when (empty? (:session/all data))
         (request! :session/all nil

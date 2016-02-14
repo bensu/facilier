@@ -37,13 +37,17 @@
 (defn post-action! [config action]
   (post! config "action" {:action (pr-str action)}))
 
+(defn read-ents [es]
+  (fn [e]
+     (mapv (fn [s] (if (string? s) (reader/read-string s) s)) es)))
+
 (defn! get-actions [config test-fn]
   (GET (->url config "actions")
        {:format :edn
         :response-format :edn
-        :handler (fn [e]
+        :handler (fn [states]
                    (println "Action fetch")
-                   (test-fn (mapv (partial mapv reader/read-string) e)))
+                   (test-fn (read-ents states)))
         :error-handler (fn [e] (println "Recording failed: " e))}))
 
 ;; TODO: returning the action might lead to bad future api decisions
@@ -56,16 +60,16 @@
 ;; ======================================================================
 ;; States
 
-(defn get-state [config test-fn]
+(defn get-state [config cb]
   (GET (->url config "state")
        {:format :edn
         :response-format :edn
         :handler (fn [e]
-                   (println "State fetch")
-                   (test-fn (mapv (fn [s]
-                                    (if (string? s) (reader/read-string s) s))
-                                  e)))
-        :error-handler (fn [e] (println "Recording failed: " e))}))
+                   (println "state fetch")
+                   (cb (mapv (fn [s]
+                               (if (string? s) (reader/read-string s) s))
+                             e)))
+        :error-handler (fn [e] (println "recording failed: " e))}))
 
 (defn post-state! [config state]
   (post! config "state" {:state (pr-str state)}))
@@ -91,3 +95,15 @@
                           (post! config "error" {:error (pr-str (dissoc error :error))}))
                         {:silence? false})
     config))
+
+
+(defn! get-sessions [config cb]
+  (GET (->url config "full-sessions/10")
+       {:format :edn
+        :response-format :edn
+        :handler (fn [sessions]
+                   (println "Session check")
+                   (cb (->> sessions
+                            (map #(update % :states read-ents))
+                            (mapv #(update % :actions read-ents)))))
+        :error-handler (fn [e] (println "recording failed: " e))}))

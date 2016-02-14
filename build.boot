@@ -21,6 +21,8 @@
                  [fogus/ring-edn "0.3.0"]
                  [compojure "1.4.0"]
                  [clj-http "1.1.0"]
+                 ;; Facilier Testing
+                 [org.clojure/test.check "0.9.0"]
                  ;; Facilier Client
                  [cljs-ajax "0.3.14"]
                  [maxwell "0.1.0-SNAPSHOT"]])
@@ -63,7 +65,8 @@
 (deftask auto-test []
   (comp (testing)
         (watch)
-        (test-cljs :js-env :phantom)))
+        (test-cljs :js-env :phantom
+                   :namespaces '[test.facilier.panel])))
 
 (deftask production []
   (task-options! cljs {:optimizations :advanced})

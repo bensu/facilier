@@ -1,7 +1,8 @@
 (ns facilier.client
   "Helpers to log states from the client"
   (:require-macros [facilier.helper :as helper])
-  (:require [cljs.reader :as reader]
+  (:require [facilier.test :refer-macros [defn!]]
+            [cljs.reader :as reader]
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
             [maxwell.kaos :as kaos]))
@@ -19,7 +20,7 @@
   (println   (str (:url config) "/" path "/" (:session/id config)))
   (str (:url config) "/" path "/" (:session/id config)))
 
-(defn post! [config path edn]
+(defn! post! [config path edn]
   (let [url (->url config path)]
     (POST url
           {:params (assoc edn
@@ -36,7 +37,7 @@
 (defn post-action! [config action]
   (post! config "action" {:action (pr-str action)}))
 
-(defn get-actions [config test-fn]
+(defn! get-actions [config test-fn]
   (GET (->url config "actions")
        {:format :edn
         :response-format :edn
@@ -61,7 +62,9 @@
         :response-format :edn
         :handler (fn [e]
                    (println "State fetch")
-                   (test-fn (mapv reader/read-string e)))
+                   (test-fn (mapv (fn [s]
+                                    (if (string? s) (reader/read-string s) s))
+                                  e)))
         :error-handler (fn [e] (println "Recording failed: " e))}))
 
 (defn post-state! [config state]

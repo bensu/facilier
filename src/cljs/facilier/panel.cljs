@@ -4,6 +4,7 @@
   (:require [cljs.pprint :as pp]
             [cljs.reader :as reader]
             [clojure.string :as str]
+            [facilier.test :refer-macros [defn! defmethod!]]
             [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
@@ -22,13 +23,14 @@
 
 (def test-url "http://localhost:3005")
 
-(defonce facilier-config (f/start-session! test-url app-state {:log-state? true}))
+(declare facilier-config)
 
 (defmulti request! (fn [k params cb] k))
 
-(defmethod request! :session/all
+(defmethod! request! :session/all
   [_ _ cb]
-  (println "request all")
+  (println "!!")
+  (println facilier.test/test?)
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
@@ -37,9 +39,8 @@
                                          (zipmap sessions)
                                          (dissoc (str (:session/id facilier-config))))}))}))
 
-(defmethod request! :session/full
+(defmethod! request! :session/full
   [_ {:keys [session/id]} cb]
-  (println "request session")
   (when (some? id)
     (GET (str test-url "/session/" id)
          {:format :edn
@@ -47,7 +48,7 @@
           :handler (fn [{:keys [session]}]
                      (cb {:session/full session}))})))
 
-(defmethod request! :session/list
+(defmethod! request! :session/list
   [_ _ cb]
   (request! :session/all _ cb))
 
@@ -118,7 +119,7 @@
        (let [{:keys [session/id session/info]} session
              date (:time/first session)]
          [:div.session nil
-          [:h5 (str id " ")
+          [:h5.session-title (str id " ")
            [:i {:class (status-class (:session/status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
                                                     (raise! [:session/close nil]))}]]
@@ -205,7 +206,7 @@
             (om/build session-view (get (:session/all data) current))
 
             (empty? all)
-            [:h5 "No sessions to show"]
+            [:h5.empty "No sessions to show"]
 
             :else
             (om/build table (->> (vals all)
@@ -215,6 +216,8 @@
 
 (defn init []
   (println "Start App")
+  (defonce facilier-config
+    (f/start-session! test-url app-state {:log-state? true}))
   (om/root widget
            app-state
            {:target (. js/document (getElementById "container"))}))

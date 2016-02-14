@@ -102,7 +102,15 @@
 (defn get-states [session-id]
   (:states (get-session session-id)))
 
+(defn get-some-states [n]
+  (->> (:sessions (get-all-sessions))
+       (take n)
+       (map :session/id)
+       (mapcat get-states)
+       vec))
+
 (defroutes state-routes
+  (GET "/state/" [] (handle (get-some-states 10)))
   (GET "/state/:session-id" [session-id] (handle (get-states session-id)))
   (POST "/state/:session-id" {:keys [params]} (handle! params save-state!)))
 

@@ -189,8 +189,7 @@
       (when (empty? (:session/all data))
         (request! :session/all nil
                  (fn [d]
-                   (om/transact! data
-                                 #(step % [:session/load d]))))))
+                   (raise! [:session/load d])))))
     om/IRender
     (render [this]
       (let [{:keys [session/current session/all]} data]

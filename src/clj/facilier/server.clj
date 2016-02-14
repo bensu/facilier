@@ -85,13 +85,14 @@
       (.delete f))))
 
 (defn get-full-sessions [n]
-  (->> (get-all-sessions)
+  (->> (:sessions (get-all-sessions))
        (take n)
        (mapv (comp get-session :session/id))))
 
 (defroutes session-routes
+  (GET "/full-sessions/:n" [n]
+       (handle (get-full-sessions 10)))
   (GET "/session" [] (handle (get-all-sessions)))
-  (GET "/full-sessions/:n" [n] (handle (get-full-sessions (Integer. n))))
   (GET "/session/:session-id" [session-id]
        (handle {:session (get-session session-id)}))
   (POST "/session/:session-id" {:keys [params]} (handle! params start-session!))

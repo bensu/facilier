@@ -1,33 +1,37 @@
 (ns facilier.test
   (:require [cljs.test]))
 
-(defmacro defsessionprop [test-name config binding & body]
-  (assert (vector? binding) "A vector for bindings")
-  (assert (= 1 (count binding)) "One element in the binding")
-  (let [state-sym (first binding)]
-    `(cljs.test/deftest ~test-name
-       (cljs.test/async done#
-                        (facilier.client/get-session ~config
-                                                     (fn [states#]
-                                                       (facilier.test/start-testing!)
-                                                       (doseq [~state-sym states#]
-                                                         ~@body)
-                                                       (facilier.test/stop-testing!)
-                                                       (done#)))))))
-
 (defmacro defstateprop [test-name config binding & body]
   (assert (vector? binding) "A vector for bindings")
   (assert (= 1 (count binding)) "One element in the binding")
   (let [state-sym (first binding)]
     `(cljs.test/deftest ~test-name
-       (facilier.test/start-testing!)
-       (cljs.test/async done#
-                        (facilier.client/get-state ~config
-                                                   (fn [states#]
-                                                     (doseq [~state-sym states#]
-                                                       ~@body)
-                                                     (facilier.test/stop-testing!)
-                                                     (done#)))))))
+       (cljs.test/async
+        done#
+        (facilier.client/get-state ~config
+                                   (fn [states#]
+                                     (facilier.test/start-testing!)
+                                     (doseq [~state-sym states#]
+                                       ~@body)
+                                     (facilier.test/stop-testing!)
+                                     (done#))
+                                   (fn [a#] (done#)))))))
+
+(defmacro defsessionprop [test-name config binding & body]
+  (assert (vector? binding) "A vector for bindings")
+  (assert (= 1 (count binding)) "One element in the binding")
+  (let [state-sym (first binding)]
+    `(cljs.test/deftest ~test-name
+       (cljs.test/async
+        done#
+        (facilier.client/get-sessions ~config
+                                      (fn [states#]
+                                        (facilier.test/start-testing!)
+                                        (doseq [~state-sym states#]
+                                          ~@body)
+                                        (facilier.test/stop-testing!)
+                                        (done#))
+                                      (fn [a#] (done#)))))))
 
 (defmacro defn! [name docs-bindings & decls]
   (assert (symbol name))

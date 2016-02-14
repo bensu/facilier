@@ -17,7 +17,6 @@
 ;; HTTP Helpers
 
 (defn ->url [config path]
-  (println   (str (:url config) "/" path "/" (:session/id config)))
   (str (:url config) "/" path "/" (:session/id config)))
 
 (defn! post! [config path edn]
@@ -38,8 +37,7 @@
   (post! config "action" {:action (pr-str action)}))
 
 (defn read-ents [es]
-  (fn [e]
-     (mapv (fn [s] (if (string? s) (reader/read-string s) s)) es)))
+  (mapv (fn [s] (if (string? s) (reader/read-string s) s)) es))
 
 (defn! get-actions [config test-fn]
   (GET (->url config "actions")
@@ -60,16 +58,18 @@
 ;; ======================================================================
 ;; States
 
-(defn get-state [config cb]
+(defn get-state [config cb ecb]
   (GET (->url config "state")
        {:format :edn
         :response-format :edn
         :handler (fn [e]
-                   (println "state fetch")
+                   (println "State fetch")
                    (cb (mapv (fn [s]
                                (if (string? s) (reader/read-string s) s))
                              e)))
-        :error-handler (fn [e] (println "recording failed: " e))}))
+        :error-handler (fn [e]
+                         (println "recording failed: " e)
+                         (ecb e))}))
 
 (defn post-state! [config state]
   (post! config "state" {:state (pr-str state)}))
@@ -96,14 +96,15 @@
                         {:silence? false})
     config))
 
-
-(defn! get-sessions [config cb]
-  (GET (->url config "full-sessions/10")
+(defn! get-sessions [config cb ecb]
+  (GET (str (:url config) "/full-sessions/10")
        {:format :edn
         :response-format :edn
         :handler (fn [sessions]
-                   (println "Session check")
+                   (println "Session fetch")
                    (cb (->> sessions
                             (map #(update % :states read-ents))
                             (mapv #(update % :actions read-ents)))))
-        :error-handler (fn [e] (println "recording failed: " e))}))
+        :error-handler (fn [e]
+                         (println "Session fetch failed: " e)
+                         (ecb e))}))

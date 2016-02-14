@@ -8,8 +8,6 @@
             [facilier.client :as f]
             [facilier.panel :as p]))
 
-(ft/start-testing!)
-
 (def config {:url "http://localhost:3005"})
 
 (defstateprop toggle-on config [state]

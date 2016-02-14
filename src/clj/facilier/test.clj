@@ -6,11 +6,13 @@
   (assert (= 1 (count binding)) "One element in the binding")
   (let [state-sym (first binding)]
     `(cljs.test/deftest ~test-name
+       (facilier.test/start-testing!)
        (cljs.test/async done#
                         (facilier.client/get-state ~config
                                                    (fn [states#]
                                                      (doseq [~state-sym states#]
                                                        ~@body)
+                                                     (facilier.test/stop-testing!)
                                                      (done#)))))))
 
 (defmacro defn! [name docs-bindings & decls]

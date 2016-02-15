@@ -4,7 +4,7 @@
   (:require [cljs.pprint :as pp]
             [cljs.reader :as reader]
             [clojure.string :as str]
-            [facilier.test :refer-macros [defn! defmethod! handle]]
+            [facilier.test :as ft :refer-macros [defn! defmethod! handle]]
             [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
@@ -27,15 +27,24 @@
 
 (defmulti request! (fn [k params cb] k))
 
+(defn request-handler [cb]
+  (handle [e]
+          (let [{:keys [sessions]} e]
+            (cb {:session/all (-> (map :session/id sessions)
+                                  (zipmap sessions)
+                                  (dissoc (str (:session/id facilier-config))))}))))
+
+(defn request-full [cb]
+  (handle [e]
+          (let [{:keys [session]} e]
+            (cb {:session/full session}))))
+
 (defmethod! request! :session/all
   [_ _ cb]
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
-        :handler (fn [{:keys [sessions]}]
-                   (cb {:session/all (-> (map :session/id sessions)
-                                         (zipmap sessions)
-                                         (dissoc (str (:session/id facilier-config))))}))}))
+        :handler (request-handler cb)}))
 
 (defmethod! request! :session/full
   [_ {:keys [session/id]} cb]
@@ -43,8 +52,7 @@
     (GET (str test-url "/session/" id)
          {:format :edn
           :response-format :edn
-          :handler (fn [{:keys [session]}]
-                     (cb {:session/full session}))})))
+          :handler (request-full cb)})))
 
 (defmethod! request! :session/list
   [_ _ cb]
@@ -132,7 +140,7 @@
              (->code (mapv reader/read-string (:actions session)))])
           (when-not (empty? (:events session))
             [:div.state "Events: "
-             (->code (mapv (comp f/read-event reader/read-string)
+             (->code (mapv (comp ft/read-event reader/read-string)
                            (:events session)))])
           (when-let [state (last (:states session))]
             ;; (if state?)
@@ -163,7 +171,7 @@
         (html
          [:tr.session-row
           {:onClick (handle [e]
-                      (raise! [:session/select {:session/id id}]))}
+                            (raise! [:session/select {:session/id id}]))}
           [:td.row-left (display-uuid commit)]
           [:td.row-left (display-uuid id)]
           [:td (display-date date)]

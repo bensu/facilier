@@ -65,3 +65,7 @@
                 ~@body)]
        (facilier.test/add-handler! id# f#)
        f#)))
+
+(defmacro defhandler [name bindings & body]
+  `(def ~name
+     (handle ~bindings ~@body)))

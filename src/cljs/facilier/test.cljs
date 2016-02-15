@@ -1,5 +1,6 @@
 (ns facilier.test
-  (:import [goog.ui IdGenerator]))
+  (:import [goog.ui IdGenerator])
+  (:require [cljs.reader :as reader]))
 
 ;; ======================================================================
 ;; Effects flag
@@ -14,6 +15,16 @@
 
 ;; ======================================================================
 ;; Event Handlers
+
+(defn edn? ^boolean [obj]
+  (contains? #{PersistentArrayMap PersistentHashMap PersistentVector
+               PersistentHashSet PersistentTreeSet}
+             (type obj)))
+
+(defn read-event [event]
+  (cond-> event
+    (contains? event :event/json) (update :event/json #(.parse js/JSON %))
+    (contains? event :event/edn) (update :event/edn reader/read-string)))
 
 (def handlers
   "Registry with all loaded event handlers"
@@ -30,11 +41,15 @@
   [id f]
   (swap! handlers #(assoc % id f)))
 
+(defn unwrap-event [e]
+  (or (:event/json e) (:event/edn e)))
+
 ;; Should it be a *serialized* event?
 (defn replay!
   "Replays a serialized event agains the current DOM"
   [e]
-  (let [e (.parse js/JSON e)
-        f (get @handlers (aget e "_handlerId"))]
-    (assert (fn? f))
-    (f e)))
+  (let [e (read-event e)
+        f (get @handlers (:handler/id e))]
+    (println @handlers)
+    (assert (fn? f) (str "Expected function found: " (type f)))
+    (f (unwrap-event e))))

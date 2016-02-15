@@ -53,8 +53,6 @@
                 (is (= current (.-innerText n)))))))
         (tu/unmount! c)))))
 
-
-
 (defsessionprop events config [session]
   (when-not (empty? (:events session))
     (let [c (tu/new-container!)
@@ -64,6 +62,7 @@
       (doseq [event (:events session)]
         (println event)
         (ft/replay! event)
+        (println @app-state)
         (om/render-all rt)
         (let [state @app-state
               {:keys [session/all session/current]} state]

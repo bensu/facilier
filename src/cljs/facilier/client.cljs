@@ -2,7 +2,7 @@
   "Helpers to log states from the client"
   (:require-macros [facilier.helper :as helper])
   (:require [cljs.reader :as reader]
-            [facilier.test :refer-macros [defn!]]
+            [facilier.test :as t :refer-macros [defn!]]
             [util.obj :as u]
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
@@ -63,23 +63,13 @@
 ;; ======================================================================
 ;; Events
 
-(defn edn? ^boolean [obj]
-  (contains? #{PersistentArrayMap PersistentHashMap PersistentVector
-               PersistentHashSet PersistentTreeSet}
-             (type obj)))
-
-(defn read-event [event]
-  (cond-> event
-    (contains? event :event/json) (update :event/json #(.parse js/JSON %))
-    (contains? event :event/edn) (update :event/edn reader/read-string)))
-
 (defn post-event! [config event]
   (post! config "event" {:event (pr-str event)}))
 
 (defn log-event! [id event]
   (post-event! *config* (merge {:handler/id id
                                 :timestamp (js/Date.)}
-                               (if (edn? event)
+                               (if (t/edn? event)
                                  {:event/edn (pr-str event)}
                                  {:event/json (u/serialize event)}))))
 
@@ -133,7 +123,8 @@
                    (println "Session fetch")
                    (cb (->> sessions
                             (map #(update % :states read-ents))
-                            (mapv #(update % :actions read-ents)))))
+                            (mapv #(update % :actions read-ents))
+                            (mapv #(update % :events read-ents)))))
         :error-handler (fn [e]
                          (println "Session fetch failed: " e)
                          (ecb e))}))

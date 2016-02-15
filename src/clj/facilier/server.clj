@@ -136,6 +136,16 @@
   (POST "/action/:session-id" {:keys [params]} (handle! params save-action!)))
 
 ;; ======================================================================
+;; Events
+
+(defn save-event! [{:keys [session-id event]}]
+  (update-session! session-id
+                   (fn [s] (update s :events #(conj % event)))))
+
+(defroutes event-routes
+  (POST "/event/:session-id" {:keys [params]} (handle! params save-event!)))
+
+;; ======================================================================
 ;; Errors
 
 (defn save-error! [{:keys [session-id error]}]
@@ -153,6 +163,7 @@
           state-routes
           action-routes
           error-routes
+          event-routes
           (route/not-found "<h1>Page not found</h1>")))
 
 ;; ======================================================================

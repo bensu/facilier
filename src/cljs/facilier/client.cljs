@@ -7,6 +7,10 @@
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
             [maxwell.kaos :as kaos]))
+;; ======================================================================
+;; Config
+
+(def ^:dynamic *config*)
 
 (defn config [server-url]
   {:session/id (random-uuid)
@@ -59,11 +63,12 @@
 ;; ======================================================================
 ;; Events
 
+(defn post-event! [config event]
+  (post! config "event" {:event event}))
+
 (defn log-event! [id event]
-  (println id)
-  (.log js/console (u/serialize event))
-  (.log js/console (u/simpleKeys event))
-  (.log js/console event))
+  (set! (.-_handlerId event) id)
+  (post-event! *config* (u/serialize event)))
 
 ;; ======================================================================
 ;; States
@@ -96,6 +101,7 @@
 
 (defn start-session! [server-url ref {:keys [log-state?]}]
   (let [config (config server-url)]
+    (set! *config* config)
     (post! config "session" (assoc (select-keys config [:git/commit :session/info])
                                    :state/init @ref))
     (when log-state?

@@ -10,7 +10,7 @@
 
 (def config {:url "http://localhost:3005"})
 
-(defstateprop toggle-on config [state]
+(defstateprop state-render config [state]
   (let [c (tu/new-container!)
         rt (om/root p/widget (atom state) {:target c})
         _ (om/render-all)
@@ -26,7 +26,7 @@
           (is (= current (.-innerText n))))))
     (tu/unmount! c)))
 
-(defsessionprop elses config [session]
+(defsessionprop actions config [session]
   (when-not (empty? (:actions session))
     (let [c (tu/new-container!)
           app-state (atom (:state/init session))
@@ -42,6 +42,31 @@
               (is (nil? current)))
             (when (= :session/select t)
               (is (= current (:session/id l)))))
+          (when (empty? all)
+            (let [row-ele (sel1 c [:h5])]
+              (is (re-find #"empty" (.-className row-ele)))))
+          (when-not (empty? all)
+            (when (nil? current)
+              (is (count all) (count (sel c [:td]))))
+            (when (some? current)
+              (let [n (sel1 c :.session-title)]
+                (is (= current (.-innerText n)))))))
+        (tu/unmount! c)))))
+
+
+
+(defsessionprop events config [session]
+  (when-not (empty? (:events session))
+    (let [c (tu/new-container!)
+          app-state (atom (:state/init session))
+          rt (om/root p/widget app-state {:target c})
+          _ (om/render-all)]
+      (doseq [event (:events session)]
+        (println event)
+        (ft/replay! event)
+        (om/render-all rt)
+        (let [state @app-state
+              {:keys [session/all session/current]} state]
           (when (empty? all)
             (let [row-ele (sel1 c [:h5])]
               (is (re-find #"empty" (.-className row-ele)))))

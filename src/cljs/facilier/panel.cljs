@@ -132,7 +132,8 @@
              (->code (mapv reader/read-string (:actions session)))])
           (when-not (empty? (:events session))
             [:div.state "Events: "
-             (->code (mapv #(js->clj (.parse js/JSON %)) (:events session)))])
+             (->code (mapv (comp f/read-event reader/read-string)
+                           (:events session)))])
           (when-let [state (last (:states session))]
             ;; (if state?)
             [:div.state  "State:" (->code (reader/read-string state))]

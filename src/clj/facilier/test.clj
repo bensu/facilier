@@ -57,6 +57,7 @@
 (defmacro handle [bindings & body]
   (assert (and (vector? bindings) (= 1 (count bindings)))
           "Bindings should be a one element vector")
+  ;; FIX: doesn't work with destructuring!
   (let [e-sym (first bindings)]
     `(let [id# (facilier.test/next-id!)
            f# (fn ~bindings

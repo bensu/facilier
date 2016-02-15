@@ -120,7 +120,7 @@
           [:h5.session-title (str id " ")
            [:i {:class (status-class (:session/status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
-                                                    (raise! [:session/close nil]))}]]
+                                                          (raise! [:session/close nil]))}]]
           [:p "Version Commit: " (:git/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]
@@ -130,6 +130,9 @@
           (when-not (empty? (:actions session))
             [:div.state "Actions: "
              (->code (mapv reader/read-string (:actions session)))])
+          (when-not (empty? (:events session))
+            [:div.state "Events: "
+             (->code (mapv #(js->clj (.parse js/JSON %)) (:events session)))])
           (when-let [state (last (:states session))]
             ;; (if state?)
             [:div.state  "State:" (->code (reader/read-string state))]

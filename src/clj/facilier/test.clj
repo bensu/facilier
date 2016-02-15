@@ -53,3 +53,14 @@
   `(defmethod ~name ~val ~bindings
      (when-not facilier.test/test?
        ~@body)))
+
+(defmacro handle [bindings & body]
+  (assert (and (vector? bindings) (= 1 (count bindings)))
+          "Bindings should be a one element vector")
+  (let [e-sym (first bindings)]
+    `(let [id# (facilier.test/next-id!)
+           f# (fn ~bindings
+                (facilier.client/log-event! id# ~e-sym)
+                ~@body)]
+       (facilier.test/add-handler! id# f#)
+       f#)))

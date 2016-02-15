@@ -4,7 +4,7 @@
   (:require [cljs.pprint :as pp]
             [cljs.reader :as reader]
             [clojure.string :as str]
-            [facilier.test :refer-macros [defn! defmethod!]]
+            [facilier.test :refer-macros [defn! defmethod! handle]]
             [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
             [ajax.core :refer [GET]]
@@ -29,8 +29,6 @@
 
 (defmethod! request! :session/all
   [_ _ cb]
-  (println "!!")
-  (println facilier.test/test?)
   (GET (str test-url "/session")
        {:format :edn
         :response-format :edn
@@ -121,7 +119,7 @@
          [:div.session nil
           [:h5.session-title (str id " ")
            [:i {:class (status-class (:session/status session))}]
-           [:i.fa.fa-times.u-pull-right {:onClick (fn [_]
+           [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
                                                     (raise! [:session/close nil]))}]]
           [:p "Version Commit: " (:git/commit session)]
           [:p (full-platform-name info)]
@@ -160,7 +158,7 @@
             date (:time/first session)]
         (html
          [:tr.session-row
-          {:onClick (fn [_]
+          {:onClick (handle [e]
                       (raise! [:session/select {:session/id id}]))}
           [:td.row-left (display-uuid commit)]
           [:td.row-left (display-uuid id)]

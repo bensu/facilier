@@ -2,6 +2,7 @@
   "Helpers to log states from the client"
   (:require-macros [facilier.helper :as helper])
   (:require [facilier.test :refer-macros [defn!]]
+            [util.obj :as u]
             [cljs.reader :as reader]
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
@@ -54,6 +55,15 @@
   [config action]
   (post-action! config action)
   action)
+
+;; ======================================================================
+;; Events
+
+(defn log-event! [id event]
+  (println id)
+  (.log js/console (u/serialize event))
+  (.log js/console (u/simpleKeys event))
+  (.log js/console event))
 
 ;; ======================================================================
 ;; States

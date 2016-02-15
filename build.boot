@@ -14,6 +14,7 @@
                  [cljsjs/react-with-addons "0.14.3-0" :scope "test"]
                  [sablono "0.6.0"]
                  ;; Facilier Server
+                 [org.clojure/core.async "0.2.374"]
                  [reloaded.repl "0.2.0"]
                  [com.stuartsierra/component "0.2.3"]
                  [ring "1.3.2"]

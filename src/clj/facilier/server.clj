@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.core.async :as async :refer [chan put! go-loop <! >!]]
             [com.stuartsierra.component :as component]
             [ring.middleware.params :as params]
             [ring.middleware.edn :refer [wrap-edn-params]]
@@ -41,6 +42,7 @@
 ;; ======================================================================
 ;; Session
 
+
 (def root-dir "test/resources/sessions")
 
 (defn session->file [session-id]
@@ -61,6 +63,7 @@
     :status/error))
 
 (defn get-session [id]
+  {:pre [(some? id)]}
   (let [f (session->file id)]
     (assert (.exists f) (str "Asked for session " id " but it's not here"))
     (let [s (edn/read-string (slurp f))]
@@ -74,10 +77,40 @@
                                (assoc :session/status (status s))
                                (dissoc :states :actions :errors :events)))))})
 
-(defn update-session! [session-id f]
-  (let [file (session->file session-id)
-        session (get-session session-id)]
+(defn update-file!
+  "Updates the file's contents assuming it has a lock on it"
+  [id f]
+  (let [file (session->file id)
+        session (get-session id)]
     (spit file (assoc (f session) :time/last (java.util.Date.)))))
+
+(def open-sessions
+  "Map {id Session} of open sessions"
+  (atom {}))
+
+(defrecord Session [id ch])
+
+(defn open-session! [id]
+  (let [ch (chan)
+        s (Session. id ch)]
+    (go-loop []
+      (let [f (<! ch)]
+        (update-file! id f)
+        (recur)))
+    (.addShutdownHook (Runtime/getRuntime)
+                      (Thread. ^Runnable
+                               (fn []
+                                 (async/close! ch))))
+    (swap! open-sessions #(assoc % id s))
+    s))
+
+(defn get-session! [id]
+  {:pre [(some? id)]}
+  (or (get open-sessions id) (open-session! id)))
+
+(defn update-session! [id f]
+  (let [s (get-session! id)]
+    (put! (:ch s) f)))
 
 (defn delete-session! [session-id]
   (let [f (session->file session-id)]

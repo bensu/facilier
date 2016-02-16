@@ -19,6 +19,7 @@
 
 (defonce app-state
   (atom {:session/current nil
+         :app/name nil
          :session/all {}}))
 
 (def test-url "http://localhost:3005")
@@ -33,15 +34,21 @@
 
 (defmulti request! (fn [k params cb] k))
 
+(defn by-id [ss]
+  (-> (map :session/id ss)
+      (zipmap ss)
+      (dissoc (str (:session/id facilier-config)))))
+
 (defmethod request! :session/all
   [_ _ cb]
   (http-request!
    (str test-url "/session")
    (handle [e]
-    (let [{:keys [sessions]} e]
-      (cb {:session/all (-> (map :session/id sessions)
-                            (zipmap sessions)
-                            (dissoc (str (:session/id facilier-config))))})))))
+     (let [{:keys [sessions]} e]
+       (cb {:session/all (->> sessions
+                              (group-by :app/name)
+                              (map (fn [[n ss]] [n (by-id ss)]))
+                              (into {}))})))))
 
 (defmethod request! :session/full
   [_ {:keys [session/id]} cb]
@@ -67,7 +74,9 @@
 
 (defmethod step :session/load
   [state [_ {:keys [session/all]}]]
-  (update state :session/all #(merge % all)))
+  (-> state
+      (assoc :app/name (first (keys all)))
+      (update :session/all #(merge % all))))
 
 (defmethod step :session/load-one
   [state [_ session]]
@@ -202,20 +211,21 @@
       (let [{:keys [session/current session/all]} data]
         (html
          [:div.container {}
-          [:h2 "Facilier"]
+          [:h2 (:app/name data)]
           #_[:div.bar {}
              [:form {}
               [:label {:htmlFor "search"} "Search"]
               [:input#search {:type "search"}]]]
           (cond
             (some? current)
-            (om/build session-view (get (:session/all data) current))
+            (om/build session-view (get-in (:session/all data)
+                                           [(:app/name data) current]))
 
             (empty? all)
             [:h5.empty "No sessions to show"]
 
             :else
-            (om/build table (->> (vals all)
+            (om/build table (->> (vals (get all (:app/name data)))
                                  (sort-by :time/first)
                                  reverse
                                  vec)))])))))

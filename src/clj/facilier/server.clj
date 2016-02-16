@@ -75,7 +75,10 @@
                   (mapv #(let [s (edn/read-string (slurp %))]
                            (-> s
                                (assoc :session/status (status s))
-                               (dissoc :states :actions :errors :events)))))})
+                               (dissoc :states :actions :errors :events))))
+
+
+                  )})
 
 (defn update-file!
   "Updates the file's contents assuming it has a lock on it"

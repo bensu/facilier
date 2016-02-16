@@ -15,16 +15,12 @@
 ;; ======================================================================
 ;; Data
 
-(def ^:dynamic raise!)
-
 (defonce app-state
   (atom {:session/current nil
          :app/name nil
          :session/all {}}))
 
 (def test-url "http://localhost:3005")
-
-(declare facilier-config)
 
 (defn! http-request! [url cb]
   (GET url
@@ -37,7 +33,7 @@
 (defn by-id [ss]
   (-> (map :session/id ss)
       (zipmap ss)
-      (dissoc (str (:session/id facilier-config)))))
+      (dissoc (str (:session/id f/*config*)))))
 
 (defmethod request! :session/all
   [_ _ cb]
@@ -126,7 +122,7 @@
       (when-not (contains? session :state)
         (request! :session/full session
                   (fn [{:keys [session/full]}]
-                    (raise! [:session/load-one full])))))
+                    (f/raise! [:session/load-one full])))))
     om/IRender
     (render [_]
       (html
@@ -136,7 +132,7 @@
           [:h5.session-title (str id " ")
            [:i {:class (status-class (:session/status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
-                                                          (raise! [:session/close nil]))}]]
+                                                          (f/raise! [:session/close nil]))}]]
           [:p "Version Commit: " (:app/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]
@@ -179,7 +175,7 @@
         (html
          [:tr.session-row
           {:onClick (handle [e]
-                            (raise! [:session/select {:session/id id}]))}
+                            (f/raise! [:session/select {:session/id id}]))}
           [:td.row-left (display-uuid commit)]
           [:td.row-left (display-uuid id)]
           [:td (display-date date)]
@@ -201,13 +197,10 @@
   (reify
     om/IWillMount
     (will-mount [_]
-      (set! raise! (fn [action]
-                     (f/log-action! facilier-config action)
-                     (om/transact! data #(step % action))))
       (when (empty? (:session/all data))
         (request! :session/all nil
                  (fn [d]
-                   (raise! [:session/load d])))))
+                   (f/raise! [:session/load d])))))
     om/IRender
     (render [this]
       (let [{:keys [session/current session/all]} data]
@@ -234,11 +227,10 @@
 
 (defn init []
   (println "Start App")
-  (defonce facilier-config
-    (f/start-session! app-state
-                      {:app/name "facilier-panel"
-                       :test/url test-url
-                       :log-state? true}))
-  (om/root widget
-           app-state
-           {:target (. js/document (getElementById "container"))}))
+  (f/monitor! widget
+              {:model app-state
+               :step step
+               :target (. js/document (getElementById "container"))}
+              {:app/name "facilier-panel"
+               :test/url test-url
+               :log-state? true}))

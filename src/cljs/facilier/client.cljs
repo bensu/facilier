@@ -2,6 +2,7 @@
   "Helpers to log states from the client"
   (:require-macros [facilier.helper :as helper])
   (:require [cljs.reader :as reader]
+            [om.core :as om]
             [facilier.test :as t :refer-macros [defn!]]
             [util.obj :as u]
             [ajax.core :refer [GET POST]]
@@ -90,6 +91,8 @@
                          (println "recording failed: " e)
                          (ecb e))}))
 
+(defonce history (atom {:states []}))
+
 (defn post-state! [config state]
   (post! config "state" {:state (pr-str state)}))
 
@@ -97,6 +100,7 @@
   (add-watch ref ::states
              (fn [_ _ old-state new-state]
                (when-not (= old-state new-state)
+                 (swap! history #(update % :states (fn [s] (conj s new-state))))
                  (post-state! config new-state))))
   ref)
 
@@ -130,3 +134,25 @@
         :error-handler (fn [e]
                          (println "Session fetch failed: " e)
                          (ecb e))}))
+
+;; ======================================================================
+;; Om API
+
+(def ^:dynamic raise!)
+
+(defn monitor-component [data owner {:keys [c step config]}]
+  (reify
+    om/IWillMount
+    (will-mount [_]
+      (set! raise! (fn [action]
+                     (log-action! *config* action)
+                     (om/transact! data #(step % action)))))
+    om/IRender
+    (render [_]
+      (om/build c data))))
+
+(defn monitor! [component {:keys [model step target]} config]
+  (start-session! model config)
+  (om/root monitor-component model
+           {:opts {:c component :config config :step step}
+            :target target}))

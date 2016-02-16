@@ -55,8 +55,8 @@
   (when (some? id)
     (http-request! (str test-url "/session/" id)
                    (handle [e]
-                           (let [{:keys [session]} e]
-                             (cb {:session/full session}))))))
+                     (let [{:keys [session]} e]
+                       (cb {:session/full session}))))))
 
 (defmethod request! :session/list
   [_ _ cb]
@@ -80,7 +80,9 @@
 
 (defmethod step :session/load-one
   [state [_ session]]
-  (update state :session/all #(assoc % (:session/id session) session)))
+  (update-in state
+             [:session/all (:app/name session)]
+             #(assoc % (:session/id session) session)))
 
 ;; ======================================================================
 ;; HTML

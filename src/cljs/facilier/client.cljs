@@ -2,6 +2,7 @@
   "Helpers to log states from the client"
   (:require-macros [facilier.helper :as helper])
   (:require [cljs.reader :as reader]
+            [clojure.string :as str]
             [om.core :as om]
             [sablono.core :as html :refer-macros [html]]
             [facilier.test :as t :refer-macros [defn!]]
@@ -9,6 +10,7 @@
             [ajax.core :refer [GET POST]]
             [maxwell.spy :as spy]
             [maxwell.kaos :as kaos]))
+
 ;; ======================================================================
 ;; Config
 
@@ -20,6 +22,12 @@
    :app/name app-name
    :app/commit (helper/git-commit)
    :test/url server-url})
+
+;; ======================================================================
+;; History
+
+(defonce history (atom {:debugger? false
+                        :states []}))
 
 ;; ======================================================================
 ;; HTTP Helpers
@@ -60,7 +68,8 @@
 (defn log-action!
   "Returns the action as convenience"
   [config action]
-  (post-action! config action)
+  (when-not (:debugger? @history)
+    (post-action! config action))
   action)
 
 ;; ======================================================================
@@ -70,11 +79,12 @@
   (post! config "event" {:event (pr-str event)}))
 
 (defn log-event! [id event]
-  (post-event! *config* (merge {:handler/id id
-                                :timestamp (js/Date.)}
-                               (if (t/edn? event)
-                                 {:event/edn (pr-str event)}
-                                 {:event/json (u/serialize event)}))))
+  (when-not (:debugger? @history)
+    (post-event! *config* (merge {:handler/id id
+                                  :timestamp (js/Date.)}
+                                 (if (t/edn? event)
+                                   {:event/edn (pr-str event)}
+                                   {:event/json (u/serialize event)})))))
 
 ;; ======================================================================
 ;; States
@@ -92,7 +102,7 @@
                          (println "recording failed: " e)
                          (ecb e))}))
 
-(defonce history (atom {:states []}))
+
 
 (defn post-state! [config state]
   (post! config "state" {:state (pr-str state)}))
@@ -101,8 +111,9 @@
   (add-watch ref ::states
              (fn [_ _ old-state new-state]
                (when-not (= old-state new-state)
-                 (swap! history #(update % :states (fn [s] (conj s new-state))))
-                 (post-state! config new-state))))
+                 (when-not (:debugger? @history)
+                   (swap! history #(update % :states (fn [s] (conj s new-state))))
+                   (post-state! config new-state)))))
   ref)
 
 ;; ======================================================================
@@ -139,21 +150,46 @@
 ;; ======================================================================
 ;; Om API
 
+(defn radio-item [current-val val f]
+  [:li {:onClick (fn [_] (f val))}
+   [:input {:name "source" :type "radio" :value (name val)
+            :checked (= val current-val)}]
+   (str/capitalize (name val))])
+
 (defn debugger [data owner opts]
   (reify
-    om/IRender
-    (render [_]
+    om/IInitState
+    (init-state [_] {:source :states
+                     :idx (dec (count (:states @history)))})
+    om/IWillMount
+    (will-mount [_]
+      (set! facilier.test/test? false)
+      (swap! history (fn [h] (assoc h :debugger? true))))
+    om/IWillUnmount
+    (will-unmount [_]
+      (set! facilier.test/test? false)
+      (swap! history (fn [h] (assoc h :debugger? false))))
+    om/IRenderState
+    (render-state [_ {:keys [source idx]}]
       (html
        [:div.debugger
-        [:ul.source
-         [:li
-          [:input {:name "source" :type "radio" :value "states"} "States"]]
-         [:li
-          [:input {:name "source" :type "radio" :value "actions"} "Actions"]]
-         [:li
-          [:input {:name "source" :type "radio" :value "events"} "Events"]]]
+        (letfn [(change [v]
+                  (om/set-state! owner :source v))]
+          [:ul.source
+           (radio-item source :states change)
+           (radio-item source :actions change)
+           (radio-item source :events change)])
         [:div.scroller
-         [:input {:type "range"}]]]))))
+         [:input {:type "range"
+                  :min 0
+                  :max (dec (count (:states @history)))
+                  :step 1
+                  :value idx
+                  :onChange (fn [e]
+                              (let [v (int (.. e -target -value))]
+                                (println v)
+                                (om/update! data (get-in @history [:states v]))
+                                (om/set-state! owner :idx v)))}]]]))))
 
 (def ^:dynamic raise!)
 
@@ -172,7 +208,7 @@
        [:div
         (om/build c data)
         [:footer
-         (if true ;;debugger?
+         (if debugger?
            [:div.debugger-container
             [:i.close-debugger.fa.fa-times.left
              {:onClick (fn [_]

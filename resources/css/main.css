@@ -108,9 +108,10 @@ body {
 .scroller {
     padding-top: 3rem;
     margin: 0 auto;
-    width: 10%;
+    width: 0%;
 }
 
 .scroller > input {
+    width: 500px;
     margin-bottom: 0;
 }

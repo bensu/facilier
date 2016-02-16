@@ -42,3 +42,75 @@ td.row-right {
 .red {
     color: #8E2C36;
 }
+
+.left {
+    padding-left: 2rem;
+    float: left;
+}
+
+.right {
+    padding-right: 2rem;
+    float: right;
+}
+
+.footer-icon {
+    font-size: 3rem;
+}
+
+footer {
+   position: fixed;
+   bottom: 0;
+   width: 100%;
+   height: 100px;
+}
+
+.close-debugger {
+    font-size: 2rem;
+    float: right;
+    padding-top: 1rem;
+    padding-right: 1rem;
+}
+
+.debugger-container {
+    height: 100%;
+    width: 100%;
+    background-color: #f1f1f1;
+    border-top: 3px solid #e1e1e1;
+}
+
+.debugger {
+    /* text-align: center; */
+}
+
+body {
+    margin-left: 0px;
+    margin-right: 0px;
+    margin-bottom: 0px;
+}
+
+.source {
+    vertical-align: middle;
+    padding-top: 1rem;
+    padding-left: 1rem;
+    float: left;
+    list-style-type: none;
+}
+
+.source > li {
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+.source > li > input {
+    margin-bottom: 0;
+}
+
+.scroller {
+    padding-top: 3rem;
+    margin: 0 auto;
+    width: 10%;
+}
+
+.scroller > input {
+    margin-bottom: 0;
+}

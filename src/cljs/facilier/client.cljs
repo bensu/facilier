@@ -3,6 +3,7 @@
   (:require-macros [facilier.helper :as helper])
   (:require [cljs.reader :as reader]
             [om.core :as om]
+            [sablono.core :as html :refer-macros [html]]
             [facilier.test :as t :refer-macros [defn!]]
             [util.obj :as u]
             [ajax.core :refer [GET POST]]
@@ -138,18 +139,50 @@
 ;; ======================================================================
 ;; Om API
 
+(defn debugger [data owner opts]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       [:div.debugger
+        [:ul.source
+         [:li
+          [:input {:name "source" :type "radio" :value "states"} "States"]]
+         [:li
+          [:input {:name "source" :type "radio" :value "actions"} "Actions"]]
+         [:li
+          [:input {:name "source" :type "radio" :value "events"} "Events"]]]
+        [:div.scroller
+         [:input {:type "range"}]]]))))
+
 (def ^:dynamic raise!)
 
 (defn monitor-component [data owner {:keys [c step config]}]
   (reify
+    om/IInitState
+    (init-state [_] {:debugger? false})
     om/IWillMount
     (will-mount [_]
       (set! raise! (fn [action]
                      (log-action! *config* action)
                      (om/transact! data #(step % action)))))
-    om/IRender
-    (render [_]
-      (om/build c data))))
+    om/IRenderState
+    (render-state [_ {:keys [debugger?]}]
+      (html
+       [:div
+        (om/build c data)
+        [:footer
+         (if true ;;debugger?
+           [:div.debugger-container
+            [:i.close-debugger.fa.fa-times.left
+             {:onClick (fn [_]
+                         (om/set-state! owner :debugger? false))}]
+            (om/build debugger data)]
+           [:div.left
+            [:i.footer-icon.fa.fa-question
+             {:onClick (fn [_]
+                         (om/set-state! owner :debugger? true))}]])]]))))
+
 
 (defn monitor! [component {:keys [model step target]} config]
   (start-session! model config)

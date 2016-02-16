@@ -76,7 +76,7 @@
 ;; ======================================================================
 ;; States
 
-(defn get-state [config cb ecb]
+(defn! get-state [config cb ecb]
   (GET (->url config "state")
        {:format :edn
         :response-format :edn

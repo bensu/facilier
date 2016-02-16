@@ -25,36 +25,33 @@
 
 (declare facilier-config)
 
-(defmulti request! (fn [k params cb] k))
-
-(defn request-handler [cb]
-  (handle [e]
-          (let [{:keys [sessions]} e]
-            (cb {:session/all (-> (map :session/id sessions)
-                                  (zipmap sessions)
-                                  (dissoc (str (:session/id facilier-config))))}))))
-
-(defn request-full [cb]
-  (handle [e]
-          (let [{:keys [session]} e]
-            (cb {:session/full session}))))
-
-(defmethod! request! :session/all
-  [_ _ cb]
-  (GET (str test-url "/session")
+(defn! http-request! [url cb]
+  (GET url
        {:format :edn
         :response-format :edn
-        :handler (request-handler cb)}))
+        :handler cb}))
 
-(defmethod! request! :session/full
+(defmulti request! (fn [k params cb] k))
+
+(defmethod request! :session/all
+  [_ _ cb]
+  (http-request!
+   (str test-url "/session")
+   (handle [e]
+    (let [{:keys [sessions]} e]
+      (cb {:session/all (-> (map :session/id sessions)
+                            (zipmap sessions)
+                            (dissoc (str (:session/id facilier-config))))})))))
+
+(defmethod request! :session/full
   [_ {:keys [session/id]} cb]
   (when (some? id)
-    (GET (str test-url "/session/" id)
-         {:format :edn
-          :response-format :edn
-          :handler (request-full cb)})))
+    (http-request! (str test-url "/session/" id)
+                   (handle [e]
+                           (let [{:keys [session]} e]
+                             (cb {:session/full session}))))))
 
-(defmethod! request! :session/list
+(defmethod request! :session/list
   [_ _ cb]
   (request! :session/all _ cb))
 

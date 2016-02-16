@@ -24,6 +24,7 @@
       (when (some? current)
         (let [n (tu/find-one-by-class rt "session-title")]
           (is (= current (.-innerText n))))))
+    (ft/unmount!)
     (tu/unmount! c)))
 
 (defsessionprop actions config [session]
@@ -50,8 +51,9 @@
               (is (count all) (count (sel c [:td]))))
             (when (some? current)
               (let [n (sel1 c :.session-title)]
-                (is (= current (.-innerText n)))))))
-        (tu/unmount! c)))))
+                (is (= current (.-innerText n))))))))
+      (ft/unmount!)
+      (tu/unmount! c))))
 
 (defsessionprop events config [session]
   (when-not (empty? (:events session))
@@ -60,9 +62,8 @@
           rt (om/root p/widget app-state {:target c})
           _ (om/render-all)]
       (doseq [event (:events session)]
-        (println event)
+        (om/render-all rt)
         (ft/replay! event)
-        (println @app-state)
         (om/render-all rt)
         (let [state @app-state
               {:keys [session/all session/current]} state]
@@ -74,5 +75,6 @@
               (is (count all) (count (sel c [:td]))))
             (when (some? current)
               (let [n (sel1 c :.session-title)]
-                (is (= current (.-innerText n)))))))
-        (tu/unmount! c)))))
+                (is (= current (.-innerText n))))))))
+      (ft/unmount!)
+      (tu/unmount! c))))

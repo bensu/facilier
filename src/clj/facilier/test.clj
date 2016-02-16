@@ -55,6 +55,8 @@
        ~@body)))
 
 (defmacro handle [bindings & body]
+  "Creates and registers an event handler"
+  {:style/indent 1}
   (assert (and (vector? bindings) (= 1 (count bindings)))
           "Bindings should be a one element vector")
   ;; FIX: doesn't work with destructuring!

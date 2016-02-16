@@ -12,17 +12,18 @@
 
 (def ^:dynamic *config*)
 
-(defn config [server-url]
+(defn config [app-name server-url]
   {:session/id (random-uuid)
    :session/info (spy/all-info)
-   :git/commit (helper/git-commit)
-   :url server-url})
+   :app/name app-name
+   :app/commit (helper/git-commit)
+   :test/url server-url})
 
 ;; ======================================================================
 ;; HTTP Helpers
 
 (defn ->url [config path]
-  (str (:url config) "/" path "/" (:session/id config)))
+  (str (:test/url config) "/" path "/" (:session/id config)))
 
 (defn! post! [config path edn]
   (let [url (->url config path)]
@@ -102,11 +103,12 @@
 ;; ======================================================================
 ;; Session
 
-(defn start-session! [server-url ref {:keys [log-state?]}]
-  (let [config (config server-url)]
+(defn start-session! [ref {:keys [app/name test/url log-state?]}]
+  (let [config (config name url)]
     (set! *config* config)
-    (post! config "session" (assoc (select-keys config [:git/commit :session/info])
-                                   :state/init @ref))
+    (post! config "session" (-> config
+                                (select-keys [:app/name :app/commit :session/info])
+                                (assoc :state/init @ref)))
     (when log-state?
       (log-states! config ref))
     (kaos/watch-errors! :facilier/client
@@ -116,7 +118,7 @@
     config))
 
 (defn! get-sessions [config cb ecb]
-  (GET (str (:url config) "/full-sessions/10")
+  (GET (str (:test/url config) "/full-sessions/10")
        {:format :edn
         :response-format :edn
         :handler (fn [sessions]

@@ -126,7 +126,7 @@
            [:i {:class (status-class (:session/status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
                                                           (raise! [:session/close nil]))}]]
-          [:p "Version Commit: " (:git/commit session)]
+          [:p "Version Commit: " (:app/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]
           #_[:p "Duration: " duration]
@@ -163,7 +163,7 @@
   (reify
     om/IRender
     (render [_]
-      (let [{:keys [session/id session/info git/commit session/status]} session
+      (let [{:keys [session/id session/info app/commit session/status]} session
             date (:time/first session)]
         (html
          [:tr.session-row
@@ -223,7 +223,10 @@
 (defn init []
   (println "Start App")
   (defonce facilier-config
-    (f/start-session! test-url app-state {:log-state? true}))
+    (f/start-session! app-state
+                      {:app/name "facilier-panel"
+                       :test/url test-url
+                       :log-state? true}))
   (om/root widget
            app-state
            {:target (. js/document (getElementById "container"))}))

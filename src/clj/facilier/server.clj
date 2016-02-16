@@ -95,8 +95,9 @@
         s (Session. id ch)]
     (go-loop []
       (let [f (<! ch)]
-        (update-file! id f)
-        (recur)))
+        (when (some? f)
+          (update-file! id f)
+          (recur))))
     (.addShutdownHook (Runtime/getRuntime)
                       (Thread. ^Runnable
                                (fn []

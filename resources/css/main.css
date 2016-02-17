@@ -55,6 +55,7 @@ td.row-right {
 
 .footer-icon {
     font-size: 3rem;
+    padding-top: 1.3rem;
 }
 
 footer {
@@ -66,7 +67,9 @@ footer {
 
 .close-debugger {
     font-size: 2.5rem;
-    padding-top: 16px;
+    padding-top: 15px;
+    padding-right: 16px;
+    float: right;
 }
 
 .debugger-container {

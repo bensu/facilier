@@ -227,12 +227,13 @@
        [:div
         (om/build c data)
         [:footer
-         (if true ;;debugger?
+         (if debugger?
            [:div.debugger-container.row
             (om/build debugger data)
-            [:i.close-debugger.fa.fa-times.one.column
-             {:onClick (fn [_]
-                         (om/set-state! owner :debugger? false))}]]
+            [:div.one.column
+             [:i.fa.fa-times.close-debugger
+              {:onClick (fn [_]
+                          (om/set-state! owner :debugger? false))}]]]
            [:div.left
             [:i.footer-icon.fa.fa-question
              {:onClick (fn [_]

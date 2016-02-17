@@ -72,6 +72,7 @@
 (defn get-all-sessions []
   {:sessions (->> (file-seq (io/file root-dir))
                   (filter #(.isFile %))
+                  (take 10)
                   (mapv #(let [s (edn/read-string (slurp %))]
                            (-> s
                                (assoc :session/status (status s))

@@ -110,10 +110,19 @@ body {
 }
 
 .scroller > input {
-    width: 430px;
     margin-bottom: 0;
     margin-left: 5%;
     margin-top: 8px;
+}
+
+.scroller > input {
+    width: 700px;
+}
+
+@media (max-width: 900px) {
+    .scroller > input {
+        width: 430px;
+    }
 }
 
 .source.button {

@@ -156,6 +156,18 @@
             :checked (= val current-val)}]
    (str/capitalize (name val))])
 
+(defn select-button
+  [{:keys [current val]} owner {:keys [click-fn]}]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       [:button {:className (if (= current val)
+                              "source button pressed"
+                              "source button")
+                 :onClick (fn [_] (click-fn val))}
+        (str/capitalize (name val))]))))
+
 (defn debugger [data owner opts]
   (reify
     om/IInitState
@@ -172,24 +184,31 @@
     om/IRenderState
     (render-state [_ {:keys [source idx]}]
       (html
-       [:div.debugger
-        (letfn [(change [v]
-                  (om/set-state! owner :source v))]
-          [:ul.source
-           (radio-item source :states change)
-           (radio-item source :actions change)
-           (radio-item source :events change)])
-        [:div.scroller
-         [:input {:type "range"
-                  :min 0
-                  :max (dec (count (:states @history)))
-                  :step 1
-                  :value idx
-                  :onChange (fn [e]
-                              (let [v (int (.. e -target -value))]
-                                (println v)
-                                (om/update! data (get-in @history [:states v]))
-                                (om/set-state! owner :idx v)))}]]]))))
+       [:div.debugger.eleven.columns
+        [:div.row
+         (letfn [(change [v]
+                   (om/set-state! owner :source v))]
+           [:ul.source.five.columns
+            (om/build select-button {:current source
+                                     :val :states}
+                      {:opts {:click-fn change}})
+            (om/build select-button {:current source
+                                     :val :actions}
+                      {:opts {:click-fn change}})
+            (om/build select-button {:current source
+                                     :val :events}
+                      {:opts {:click-fn change}})])
+         [:div.scroller.six.columns
+          [:input {:type "range"
+                   :min 0
+                   :max (dec (count (:states @history)))
+                   :step 1
+                   :value idx
+                   :onChange (fn [e]
+                               (let [v (int (.. e -target -value))]
+                                 (println v)
+                                 (om/update! data (get-in @history [:states v]))
+                                 (om/set-state! owner :idx v)))}]]]]))))
 
 (def ^:dynamic raise!)
 
@@ -208,12 +227,12 @@
        [:div
         (om/build c data)
         [:footer
-         (if debugger?
-           [:div.debugger-container
-            [:i.close-debugger.fa.fa-times.left
+         (if true ;;debugger?
+           [:div.debugger-container.row
+            (om/build debugger data)
+            [:i.close-debugger.fa.fa-times.one.column
              {:onClick (fn [_]
-                         (om/set-state! owner :debugger? false))}]
-            (om/build debugger data)]
+                         (om/set-state! owner :debugger? false))}]]
            [:div.left
             [:i.footer-icon.fa.fa-question
              {:onClick (fn [_]

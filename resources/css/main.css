@@ -2,6 +2,14 @@
     background-color: #f1f1f1;
 }
 
+.session-row {
+    cursor: pointer;
+}
+
+i {
+    cursor: pointer;
+}
+
 code {
     overflow: scroll;
 }

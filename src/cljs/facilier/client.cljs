@@ -168,12 +168,25 @@
                  :onClick (fn [_] (click-fn val))}
         (str/capitalize (name val))]))))
 
-(defn session-input [data owner {:keys [change-fn]}]
+(defn session-input [data owner {:keys [enter-fn]}]
   (reify
-    om/IRender
-    (render [_]
+    om/IInitState
+    (init-state [_] {:value ""})
+    om/IDidMount
+    (did-mount [_]
+      (.focus (om/get-node owner "input")))
+    om/IRenderState
+    (render-state [_ {:keys [value]}]
       (html
-       [:div.ten.columns [:input.session-input {:type "text"}]]))))
+       [:div.ten.columns
+        [:input.session-input {:ref "input"
+                               :type "text" :value value
+                               :onChange (fn [e]
+                                           (let [v (.. e -target -value)]
+                                             (om/set-state! owner :value v)))
+                               :onKeyDown (fn [e]
+                                            (when (= 13 (.-keyCode e))
+                                              (enter-fn value)))}]]))))
 
 (defn debugger [data owner opts]
   (reify
@@ -248,7 +261,9 @@
                 {:onClick (fn [_]
                             (om/set-state! owner :new-session? true))}])]
             (if new-session?
-              (om/build session-input data)
+              (om/build session-input data
+                        {:opts {:enter-fn (fn [v]
+                                            (println v))}})
               (om/build debugger data))
             [:div.one.column
              [:i.fa.fa-times.close-debugger

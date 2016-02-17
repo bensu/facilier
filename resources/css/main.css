@@ -110,16 +110,15 @@ body {
 }
 
 .scroller > input {
-    width: 350px;
+    width: 430px;
     margin-bottom: 0;
-    margin-left: 0;
-    padding-left: 0;
+    margin-left: 5%;
     margin-top: 8px;
 }
 
 .source.button {
     padding: 0 10px;
-    font-size: 1rem;
+    font-size: 0.9rem;
     margin-left: 5px;
 }
 

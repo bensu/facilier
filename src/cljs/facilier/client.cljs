@@ -193,7 +193,7 @@
           [:i.new-session.fa.fa-folder-open]]
          (letfn [(change [v]
                    (om/set-state! owner :source v))]
-           [:ul.source.five.columns
+           [:ul.source.four.columns
             (om/build select-button {:current source
                                      :val :states}
                       {:opts {:click-fn change}})

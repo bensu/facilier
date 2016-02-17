@@ -180,7 +180,10 @@
     om/IWillUnmount
     (will-unmount [_]
       (set! facilier.test/test? false)
-      (swap! history (fn [h] (assoc h :debugger? false))))
+      (om/update! data (last (:states @history)))
+      (swap! history (fn [h] (assoc h
+                                   :debugger? false
+                                   :idx (dec (count (:states h)))))))
     om/IRenderState
     (render-state [_ {:keys [source idx]}]
       (html
@@ -206,7 +209,6 @@
                    :value idx
                    :onChange (fn [e]
                                (let [v (int (.. e -target -value))]
-                                 (println v)
                                  (om/update! data (get-in @history [:states v]))
                                  (om/set-state! owner :idx v)))}]]]]))))
 

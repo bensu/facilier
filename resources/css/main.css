@@ -70,6 +70,7 @@ td.row-right {
     padding-top: 1.3rem;
 }
 
+
 footer {
    position: fixed;
    bottom: 0;
@@ -143,8 +144,20 @@ body {
     margin-left: 5px;
 }
 
+.source.button:hover {
+    border-color: #8C3E71;
+    color: #8C3E71;
+}
+
 .button.pressed {
     background-color: #e1e1e1;
+    border-color: #8C3E71;
+    color: #530E3B;
+}
+
+
+.new-session:hover, .close-debugger:hover, .footer-icon:hover  {
+    color: #530E3B;
 }
 
 .new-session {

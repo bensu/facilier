@@ -128,14 +128,14 @@ body {
 }
 
 .scroller > input {
-    width: 700px;
+    width: 100%;
 }
 
-@media (max-width: 900px) {
-    .scroller > input {
-        width: 430px;
-    }
-}
+/* @media (max-width: 900px) { */
+/*     .scroller > input { */
+/*         width: 100%; /\* 430px; *\/ */
+/*     } */
+/* } */
 
 .source.button {
     padding: 0 10px;
@@ -149,6 +149,12 @@ body {
 
 .new-session {
     font-size: 2.5rem;
-    padding-top: 8px;
+    padding-top: 1.7rem;
     padding-left: 16px;
+}
+
+input.session-input {
+    height: 30px;
+    margin-top: 12px;
+    width: 100%;
 }

@@ -168,6 +168,13 @@
                  :onClick (fn [_] (click-fn val))}
         (str/capitalize (name val))]))))
 
+(defn session-input [data owner {:keys [change-fn]}]
+  (reify
+    om/IRender
+    (render [_]
+      (html
+       [:div.ten.columns [:input.session-input {:type "text"}]]))))
+
 (defn debugger [data owner opts]
   (reify
     om/IInitState
@@ -187,13 +194,11 @@
     om/IRenderState
     (render-state [_ {:keys [source idx]}]
       (html
-       [:div.debugger.eleven.columns
+       [:div.debugger.ten.columns
         [:div.row
-         [:div.one.column
-          [:i.new-session.fa.fa-folder-open]]
          (letfn [(change [v]
                    (om/set-state! owner :source v))]
-           [:ul.source.four.columns
+           [:ul.source.five.columns
             (om/build select-button {:current source
                                      :val :states}
                       {:opts {:click-fn change}})
@@ -203,7 +208,7 @@
             (om/build select-button {:current source
                                      :val :events}
                       {:opts {:click-fn change}})])
-         [:div.scroller.five.columns
+         [:div.scroller.seven.columns
           [:input {:type "range"
                    :min 0
                    :max (dec (count (:states @history)))
@@ -219,21 +224,32 @@
 (defn monitor-component [data owner {:keys [c step config]}]
   (reify
     om/IInitState
-    (init-state [_] {:debugger? false})
+    (init-state [_] {:debugger? false
+                     :new-session? false})
     om/IWillMount
     (will-mount [_]
       (set! raise! (fn [action]
                      (log-action! *config* action)
                      (om/transact! data #(step % action)))))
     om/IRenderState
-    (render-state [_ {:keys [debugger?]}]
+    (render-state [_ {:keys [debugger? new-session?]}]
       (html
        [:div
         (om/build c data)
         [:footer
          (if true ;; debugger?
            [:div.debugger-container.row
-            (om/build debugger data)
+            [:div.one.column
+             (if new-session?
+               [:i.new-session.fa.fa-arrow-left
+                {:onClick (fn [_]
+                            (om/set-state! owner :new-session? false))}]
+               [:i.new-session.fa.fa-folder-open
+                {:onClick (fn [_]
+                            (om/set-state! owner :new-session? true))}])]
+            (if new-session?
+              (om/build session-input data)
+              (om/build debugger data))
             [:div.one.column
              [:i.fa.fa-times.close-debugger
               {:onClick (fn [_]

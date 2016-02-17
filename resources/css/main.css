@@ -170,4 +170,13 @@ input.session-input {
     height: 30px;
     margin-top: 12px;
     width: 100%;
+
+}
+
+/* input.session-input:focus { */
+/*     border-color: #1C5A0F; */
+/* } */
+
+input.session-input.error:focus {
+    border-color: #8E2C36;
 }

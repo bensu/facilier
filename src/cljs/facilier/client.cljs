@@ -133,16 +133,19 @@
                         {:silence? false})
     config))
 
+(defn read-session [s]
+  (-> s
+      (update :states read-ents)
+      (update :actions read-ents)
+      (update :events read-ents)))
+
 (defn! get-sessions [config cb ecb]
   (GET (str (:test/url config) "/full-sessions/10")
        {:format :edn
         :response-format :edn
         :handler (fn [sessions]
                    (println "Session fetch")
-                   (cb (->> sessions
-                            (map #(update % :states read-ents))
-                            (mapv #(update % :actions read-ents))
-                            (mapv #(update % :events read-ents)))))
+                   (cb (mapv read-session sessions)))
         :error-handler (fn [e]
                          (println "Session fetch failed: " e)
                          (ecb e))}))
@@ -152,7 +155,7 @@
        {:format :edn
         :response-format :edn
         :handler (fn [{:keys [session]}]
-                   (cb session))
+                   (cb (read-session session)))
         :error-handler (fn [e]
                          (ecb e))}))
 ;; ======================================================================
@@ -175,26 +178,6 @@
                               "source button")
                  :onClick (fn [_] (click-fn val))}
         (str/capitalize (name val))]))))
-
-(defn session-input [data owner {:keys [enter-fn]}]
-  (reify
-    om/IInitState
-    (init-state [_] {:value ""})
-    om/IDidMount
-    (did-mount [_]
-      (.focus (om/get-node owner "input")))
-    om/IRenderState
-    (render-state [_ {:keys [value]}]
-      (html
-       [:div.ten.columns
-        [:input.session-input {:ref "input"
-                               :type "text" :value value
-                               :onChange (fn [e]
-                                           (let [v (.. e -target -value)]
-                                             (om/set-state! owner :value v)))
-                               :onKeyDown (fn [e]
-                                            (when (= 13 (.-keyCode e))
-                                              (enter-fn value)))}]]))))
 
 (defn debugger [data owner opts]
   (reify
@@ -245,25 +228,49 @@
 (defn new-history! [data owner session]
   (let [states (:states session)
         new-state (last states)]
-    (println new-state)
+    (println (type new-state))
     (om/set-state! owner :idx (dec (count states)))
     (om/set-state! owner :new-session? false)
     (om/transact! data (fn [d] new-state))
     (swap! history (fn [h] (assoc h :states states)))))
+
+(defn session-input
+  [{:keys [value error?]} owner {:keys [change-fn enter-fn]}]
+  (reify
+    om/IDidMount
+    (did-mount [_]
+      (.focus (om/get-node owner "input")))
+    om/IRender
+    (render [_]
+      (html
+       [:div.ten.columns
+        [:input {:ref "input"
+                 :className (if error?
+                              "session-input error"
+                              "session-input")
+                 :type "text" :value value
+                 :onChange (fn [e]
+                             (let [v (.. e -target -value)]
+                               (change-fn v)))
+                 :onKeyDown (fn [e]
+                              (when (= 13 (.-keyCode e))
+                                (enter-fn value)))}]]))))
 
 (defn monitor-component
   [data owner {:keys [c step config]}]
   (reify
     om/IInitState
     (init-state [_] {:debugger? false
-                     :new-session? false})
+                     :new-session? false
+                     :error? false
+                     :value ""})
     om/IWillMount
     (will-mount [_]
       (set! raise! (fn [action]
                      (log-action! *config* action)
                      (om/transact! data #(step % action)))))
     om/IRenderState
-    (render-state [_ {:keys [debugger? new-session?]}]
+    (render-state [_ {:keys [debugger? new-session? value error?]}]
       (html
        [:div
         (om/build c data)
@@ -279,13 +286,16 @@
                 {:onClick (fn [_]
                             (om/set-state! owner :new-session? true))}])]
             (if new-session?
-              (om/build session-input data
-                        {:opts {:enter-fn (fn [v]
+              (om/build session-input {:value value :error? error?}
+                        {:opts {:change-fn (fn [v]
+                                             (om/set-state! owner :error? false)
+                                             (om/set-state! owner :value v))
+                                :enter-fn (fn [v]
                                             (get-session v *config*
                                                          (fn [s]
                                                            (new-history! data owner s))
                                                          (fn [_]
-                                                           (println "error"))))}})
+                                                           (om/set-state! owner :error? true))))}})
               (om/build debugger data))
             [:div.one.column
              [:i.fa.fa-times.close-debugger

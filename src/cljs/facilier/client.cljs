@@ -147,6 +147,14 @@
                          (println "Session fetch failed: " e)
                          (ecb e))}))
 
+(defn get-session [id config cb ecb]
+  (GET (str (:test/url config) "/session/" id)
+       {:format :edn
+        :response-format :edn
+        :handler (fn [{:keys [session]}]
+                   (cb session))
+        :error-handler (fn [e]
+                         (ecb e))}))
 ;; ======================================================================
 ;; Om API
 
@@ -234,7 +242,17 @@
 
 (def ^:dynamic raise!)
 
-(defn monitor-component [data owner {:keys [c step config]}]
+(defn new-history! [data owner session]
+  (let [states (:states session)
+        new-state (last states)]
+    (println new-state)
+    (om/set-state! owner :idx (dec (count states)))
+    (om/set-state! owner :new-session? false)
+    (om/transact! data (fn [d] new-state))
+    (swap! history (fn [h] (assoc h :states states)))))
+
+(defn monitor-component
+  [data owner {:keys [c step config]}]
   (reify
     om/IInitState
     (init-state [_] {:debugger? false
@@ -250,7 +268,7 @@
        [:div
         (om/build c data)
         [:footer
-         (if true ;; debugger?
+         (if debugger?
            [:div.debugger-container.row
             [:div.one.column
              (if new-session?
@@ -263,7 +281,11 @@
             (if new-session?
               (om/build session-input data
                         {:opts {:enter-fn (fn [v]
-                                            (println v))}})
+                                            (get-session v *config*
+                                                         (fn [s]
+                                                           (new-history! data owner s))
+                                                         (fn [_]
+                                                           (println "error"))))}})
               (om/build debugger data))
             [:div.one.column
              [:i.fa.fa-times.close-debugger

@@ -235,10 +235,9 @@
               {:onClick (fn [_]
                           (om/set-state! owner :debugger? false))}]]]
            [:div.left
-            [:i.footer-icon.fa.fa-question
+            [:i.footer-icon.fa.fa-step-backward
              {:onClick (fn [_]
                          (om/set-state! owner :debugger? true))}]])]]))))
-
 
 (defn monitor! [component {:keys [model step target]} config]
   (start-session! model config)

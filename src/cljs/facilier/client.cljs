@@ -189,6 +189,8 @@
       (html
        [:div.debugger.eleven.columns
         [:div.row
+         [:div.one.column
+          [:i.new-session.fa.fa-folder-open]]
          (letfn [(change [v]
                    (om/set-state! owner :source v))]
            [:ul.source.five.columns
@@ -201,7 +203,7 @@
             (om/build select-button {:current source
                                      :val :events}
                       {:opts {:click-fn change}})])
-         [:div.scroller.six.columns
+         [:div.scroller.five.columns
           [:input {:type "range"
                    :min 0
                    :max (dec (count (:states @history)))
@@ -229,7 +231,7 @@
        [:div
         (om/build c data)
         [:footer
-         (if debugger?
+         (if true ;; debugger?
            [:div.debugger-container.row
             (om/build debugger data)
             [:div.one.column

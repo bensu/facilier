@@ -6,6 +6,10 @@ code {
     overflow: scroll;
 }
 
+.main-title {
+    padding-top: 1rem;
+}
+
 .session {
     padding: 2.5rem 3rem;
     background-color: #f1f1f1;

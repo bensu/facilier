@@ -206,7 +206,7 @@
       (let [{:keys [session/current session/all]} data]
         (html
          [:div.container {}
-          [:h2 (:app/name data)]
+          [:h2.main-title (:app/name data)]
           #_[:div.bar {}
              [:form {}
               [:label {:htmlFor "search"} "Search"]

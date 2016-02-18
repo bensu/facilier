@@ -117,6 +117,30 @@
 (defn ->code [edn]
   [:pre [:code (with-out-str (pp/pprint edn))]])
 
+(defn code-view [{:keys [key session]} owner]
+  {:pre [(contains? #{:state :errors :actions :events} key)]}
+  (reify
+    om/IInitState
+    (init-state [_] {:open? false})
+    om/IRenderState
+    (render-state [_ {:keys [open?]}]
+      (html
+       [:div.state [:span {:onClick (fn [_]
+                                      (println open?)
+                                      (om/update-state! owner :open? not))}
+                    (str/capitalize (name key))
+                    [:i {:className (if open?
+                                      "toggle-code fa fa-chevron-right"
+                                      "toggle-code fa fa-chevron-down")}]]
+        (when open?
+          (->code (case key
+                    :state (reader/read-string (last (:states session)))
+                    (mapv (comp (case key
+                                  :events ft/read-event
+                                  identity)
+                                reader/read-string)
+                          (get session key)))))]))))
+
 (defn session-view [session owner]
   (reify
     om/IWillMount
@@ -135,25 +159,18 @@
            [:i {:class (status-class (:session/status session))}]
            [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
                                                           (f/raise! [:session/close nil]))}]]
-          [:p "Version Commit: " (:app/commit session)]
+          [:p "App commit: " (:app/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]
-          #_[:p "Duration: " duration]
-          (when-let [error (last (:errors session))]
-            [:div.state "Error:" (->code  (reader/read-string error))])
+          [:br]
+          (when-not (empty? (:errors session))
+            (om/build code-view {:key :errors :session session}))
           (when-not (empty? (:actions session))
-            [:div.state "Actions: "
-             (->code (mapv reader/read-string (:actions session)))])
+            (om/build code-view {:key :actions :session session}))
           (when-not (empty? (:events session))
-            [:div.state "Events: "
-             (->code (mapv (comp ft/read-event reader/read-string)
-                           (:events session)))])
+            (om/build code-view {:key :events :session session}))
           (when-let [state (last (:states session))]
-            ;; (if state?)
-            [:div.state  "State:" (->code (reader/read-string state))]
-            ;; [:div.state {:onClick (fn [_]
-            ;;                         (om/update-state! this update :state? not))}
-            ;;  [:i.fa.fa-chevron-right] "State"]
+            (om/build code-view {:key :state :session session})
             )])))))
 
 ;; ======================================================================

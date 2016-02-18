@@ -10,7 +10,21 @@ i {
     cursor: pointer;
 }
 
+.state {
+    font-size: 2rem;
+    padding-bottom: 0.5rem;
+}
+
+.state > span {
+    cursor: pointer;
+}
+
+.state:hover {
+    color: #530E3B;
+}
+
 code {
+    font-size: 1rem;
     overflow: scroll;
 }
 
@@ -24,6 +38,10 @@ code {
     margin: 0.2rem;
     border: 1px solid #e1e1e1;
     border-radius: 4px;
+}
+
+.session > p {
+    margin-bottom: 1rem;
 }
 
 th.row-left {
@@ -155,8 +173,11 @@ body {
     color: #530E3B;
 }
 
+.toggle-code {
+    padding-left: 0.5rem;
+}
 
-.new-session:hover, .close-debugger:hover, .footer-icon:hover  {
+.new-session:hover, .close-debugger:hover, .footer-icon:hover, .toggle-code:hover {
     color: #530E3B;
 }
 

@@ -157,8 +157,9 @@
          [:div.session nil
           [:h5.session-title (str id " ")
            [:i {:class (status-class (:session/status session))}]
-           [:i.fa.fa-times.u-pull-right {:onClick (handle [e]
-                                                          (f/raise! [:session/close nil]))}]]
+           [:i.fa.fa-times.u-pull-right.close-session
+            {:onClick (handle [e]
+                              (f/raise! [:session/close nil]))}]]
           [:p "App commit: " (:app/commit session)]
           [:p (full-platform-name info)]
           [:p (display-date date)]

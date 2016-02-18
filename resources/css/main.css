@@ -177,7 +177,7 @@ body {
     padding-left: 0.5rem;
 }
 
-.new-session:hover, .close-debugger:hover, .footer-icon:hover, .toggle-code:hover {
+.new-session:hover, .close-debugger:hover, .footer-icon:hover, .toggle-code:hover, .close-session:hover {
     color: #530E3B;
 }
 

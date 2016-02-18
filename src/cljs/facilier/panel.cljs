@@ -17,7 +17,7 @@
 
 (defonce app-state
   (atom {:session/current nil
-         :app/name nil
+         :app/name "facilier-panel"
          :session/all {}}))
 
 (def test-url "http://localhost:3005")

@@ -27,7 +27,15 @@
 ;; History
 
 (defonce history (atom {:debugger? false
-                        :states []}))
+                        :buffers {:states []
+                                  :actions []
+                                  :events []}}))
+
+(defn log! [k o]
+  (swap! history #(update-in % [:buffers k] (fn [os] (conj os o)))))
+
+(defn buffer-size [k]
+  (count (get-in @history [:buffers k])))
 
 ;; ======================================================================
 ;; HTTP Helpers
@@ -69,6 +77,7 @@
   "Returns the action as convenience"
   [config action]
   (when-not (:debugger? @history)
+    (log! :actions action)
     (post-action! config action))
   action)
 
@@ -78,8 +87,10 @@
 (defn post-event! [config event]
   (post! config "event" {:event (pr-str event)}))
 
+;; can't use local state
 (defn log-event! [id event]
   (when-not (:debugger? @history)
+    (log! :events event)
     (post-event! *config* (merge {:handler/id id
                                   :timestamp (js/Date.)}
                                  (if (t/edn? event)
@@ -112,7 +123,7 @@
              (fn [_ _ old-state new-state]
                (when-not (= old-state new-state)
                  (when-not (:debugger? @history)
-                   (swap! history #(update % :states (fn [s] (conj s new-state))))
+                   (log! :states new-state)
                    (post-state! config new-state)))))
   ref)
 
@@ -120,11 +131,13 @@
 ;; Session
 
 (defn start-session! [ref {:keys [app/name test/url log-state?]}]
-  (let [config (config name url)]
+  (let [config (config name url)
+        init-state @ref]
     (set! *config* config)
+    (log! :states init-state)
     (post! config "session" (-> config
                                 (select-keys [:app/name :app/commit :session/info])
-                                (assoc :state/init @ref)))
+                                (assoc :state/init init-state)))
     (when log-state?
       (log-states! config ref))
     (kaos/watch-errors! :facilier/client
@@ -183,18 +196,17 @@
   (reify
     om/IInitState
     (init-state [_] {:source :states
-                     :idx (dec (count (:states @history)))})
+                     :idx (dec (buffer-size :states))})
     om/IWillMount
     (will-mount [_]
-      (set! facilier.test/test? false)
+      (set! facilier.test/test? true)
       (swap! history (fn [h] (assoc h :debugger? true))))
     om/IWillUnmount
     (will-unmount [_]
       (set! facilier.test/test? false)
-      (om/update! data (last (:states @history)))
-      (swap! history (fn [h] (assoc h
-                                   :debugger? false
-                                   :idx (dec (count (:states h)))))))
+      (swap! history (fn [h] (assoc h :debugger? false)))
+      (when-let [s (last (get-in @history [:buffers :states]))]
+        (om/update! data s)))
     om/IRenderState
     (render-state [_ {:keys [source idx]}]
       (html
@@ -203,36 +215,58 @@
          (letfn [(change [v]
                    (om/set-state! owner :source v))]
            [:ul.source.five.columns
-            (om/build select-button {:current source
-                                     :val :states}
+            (om/build select-button {:current source :val :states}
                       {:opts {:click-fn change}})
-            (om/build select-button {:current source
-                                     :val :actions}
+            (om/build select-button {:current source :val :actions}
                       {:opts {:click-fn change}})
-            (om/build select-button {:current source
-                                     :val :events}
+            (om/build select-button {:current source :val :events}
                       {:opts {:click-fn change}})])
          [:div.scroller.seven.columns
           [:input {:type "range"
                    :min 0
-                   :max (dec (count (:states @history)))
+                   :max (dec (buffer-size :states))
                    :step 1
                    :value idx
                    :onChange (fn [e]
                                (let [v (int (.. e -target -value))]
-                                 (om/update! data (get-in @history [:states v]))
-                                 (om/set-state! owner :idx v)))}]]]]))))
+                                 (println v)
+                                 (println (buffer-size :states))
+                                 (println (get-in @history [:buffers :states]))
+                                 (when (and (<= 0 v)
+                                            (< v (buffer-size :states)))
+                                   (let [s (get-in @history [:buffers :states v])]
+                                     (println s)
+                                     (assert (some? s) s)
+                                     (om/update! data s)
+                                     (om/set-state! owner :idx v)))))}]]]]))))
 
 (def ^:dynamic raise!)
 
-(defn new-history! [data owner session]
-  (let [states (:states session)
-        new-state (last states)]
-    (println (type new-state))
-    (om/set-state! owner :idx (dec (count states)))
-    (om/set-state! owner :new-session? false)
-    (om/transact! data (fn [d] new-state))
-    (swap! history (fn [h] (assoc h :states states)))))
+(defn new-history!
+  "Replaces the current state of the system with the new session"
+  [data owner session]
+  (let [init-state (:state/init session)
+        new-buffer (-> session
+                       (select-keys [:states :actions :events])
+                       (update :states #(vec (concat [init-state] %))))]
+    (println "NEW HISTORY")
+    (println "old" @history)
+    (println "new session" session)
+    (when init-state
+      (swap! history #(assoc % :buffers new-buffer))
+      (om/set-state! owner :idx 0)
+      (om/set-state! owner :new-session? false)
+      (om/update! data init-state))))
+
+(defn fetch-session!
+  "Tries to get a session from the server and use it as the new state"
+  [data owner v]
+  (get-session v *config*
+               (fn [s]
+                 (println "fetched")
+                 (new-history! data owner s))
+               (fn [_]
+                 (om/set-state! owner :error? true))))
 
 (defn session-input
   [{:keys [value error?]} owner {:keys [change-fn enter-fn]}]
@@ -291,11 +325,7 @@
                                              (om/set-state! owner :error? false)
                                              (om/set-state! owner :value v))
                                 :enter-fn (fn [v]
-                                            (get-session v *config*
-                                                         (fn [s]
-                                                           (new-history! data owner s))
-                                                         (fn [_]
-                                                           (om/set-state! owner :error? true))))}})
+                                            (fetch-session! data owner v))}})
               (om/build debugger data))
             [:div.one.column
              [:i.fa.fa-times.close-debugger

@@ -85,7 +85,9 @@
 
 (defn browser-class [browser]
   {:pre [(keyword? browser)]}
-  (str "fa icon-cell fa-" (name browser)))
+  (str "fa icon-cell fa-" (if (= :ie browser)
+                            "internet-explorer"
+                            (name browser))))
 
 (defn os-class [os]
   (str "fa icon-cell fa-" (if (= :mac os) "apple" (name os))))

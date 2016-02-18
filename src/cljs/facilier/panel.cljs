@@ -160,8 +160,9 @@
            [:i.fa.fa-times.u-pull-right.close-session
             {:onClick (handle [e]
                               (f/raise! [:session/close nil]))}]]
-          [:p "App commit: " (:app/commit session)]
-          [:p (full-platform-name info)]
+          [:p "App Version: " (:app/commit session)]
+          (let [[w h] (get-in session [:session/info :screen])]
+            [:p (full-platform-name info) ", " w " x " h])
           [:p (display-date date)]
           [:br]
           (when-not (empty? (:errors session))

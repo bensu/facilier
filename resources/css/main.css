@@ -194,6 +194,15 @@ input.session-input {
 
 }
 
+button > a {
+    text-decoration: none;
+}
+
+button.playback {
+    margin-right: 1rem;
+    margin-bottom: 2.5rem;
+}
+
 /* input.session-input:focus { */
 /*     border-color: #1C5A0F; */
 /* } */

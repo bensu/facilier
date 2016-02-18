@@ -160,6 +160,12 @@
            [:i.fa.fa-times.u-pull-right.close-session
             {:onClick (handle [e]
                               (f/raise! [:session/close nil]))}]]
+
+          [:button.playback {:onClick (fn [_] (println id))}
+           "Playback" ]
+          [:button.playback [:a {:href "https://saucelabs.com/beta/manual"
+                                 :target "_blank"}
+                             "Sauce Labs"]]
           [:p "App Version: " (:app/commit session)]
           (let [[w h] (get-in session [:session/info :screen])]
             [:p (full-platform-name info) ", " w " x " h])
@@ -172,8 +178,7 @@
           (when-not (empty? (:events session))
             (om/build code-view {:key :events :session session}))
           (when-let [state (last (:states session))]
-            (om/build code-view {:key :state :session session})
-            )])))))
+            (om/build code-view {:key :state :session session}))])))))
 
 ;; ======================================================================
 ;; Table
@@ -200,7 +205,6 @@
           [:td.row-left (display-uuid commit)]
           [:td.row-left (display-uuid id)]
           [:td (display-date date)]
-          #_[:td.center duration]
           [:td.center (platform-icons info)]
           [:td.row-right.center [:i {:class (status-class status)}]]])))))
 

@@ -161,8 +161,9 @@
             {:onClick (handle [e]
                               (f/raise! [:session/close nil]))}]]
 
-          [:button.playback {:onClick (fn [_] (println id))}
-           "Playback" ]
+          [:button.playback [:a {:href (str "/#" id)
+                                 :target "_blank"}
+                             "Playback"]]
           [:button.playback [:a {:href "https://saucelabs.com/beta/manual"
                                  :target "_blank"}
                              "Sauce Labs"]]

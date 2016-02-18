@@ -222,23 +222,21 @@
             (om/build select-button {:current source :val :events}
                       {:opts {:click-fn change}})])
          [:div.scroller.seven.columns
-          [:input {:type "range"
-                   :min 0
-                   :max (dec (buffer-size :states))
-                   :step 1
-                   :value idx
-                   :onChange (fn [e]
-                               (let [v (int (.. e -target -value))]
-                                 (println v)
-                                 (println (buffer-size :states))
-                                 (println (get-in @history [:buffers :states]))
-                                 (when (and (<= 0 v)
-                                            (< v (buffer-size :states)))
-                                   (let [s (get-in @history [:buffers :states v])]
-                                     (println s)
-                                     (assert (some? s) s)
-                                     (om/update! data s)
-                                     (om/set-state! owner :idx v)))))}]]]]))))
+          (let [max-size (dec (buffer-size :states))]
+            (when (pos? max-size)
+              [:input {:type "range"
+                       :min 0
+                       :max (dec (buffer-size :states))
+                       :step 1
+                       :value idx
+                       :onChange (fn [e]
+                                   (let [v (int (.. e -target -value))]
+                                     (when (and (<= 0 v)
+                                                (< v (buffer-size :states)))
+                                       (let [s (get-in @history [:buffers :states v])]
+                                         (assert (some? s) s)
+                                         (om/update! data s)
+                                         (om/set-state! owner :idx v)))))}]))]]]))))
 
 (def ^:dynamic raise!)
 
@@ -249,9 +247,6 @@
         new-buffer (-> session
                        (select-keys [:states :actions :events])
                        (update :states #(vec (concat [init-state] %))))]
-    (println "NEW HISTORY")
-    (println "old" @history)
-    (println "new session" session)
     (when init-state
       (swap! history #(assoc % :buffers new-buffer))
       (om/set-state! owner :idx 0)
@@ -261,11 +256,14 @@
 (defn fetch-session!
   "Tries to get a session from the server and use it as the new state"
   [data owner v]
+  (om/set-state! owner :fetching? true)
   (get-session v *config*
                (fn [s]
                  (println "fetched")
+                 (om/set-state! owner :fetching? false)
                  (new-history! data owner s))
                (fn [_]
+                 (om/set-state! owner :fetching? false)
                  (om/set-state! owner :error? true))))
 
 (defn session-input
@@ -295,46 +293,54 @@
   (reify
     om/IInitState
     (init-state [_] {:debugger? false
+                     :fetching? false
                      :new-session? false
                      :error? false
                      :value ""})
     om/IWillMount
     (will-mount [_]
+      (let [hash (.-hash js/document.location)]
+        (when-not (empty? hash)
+          (let [id (apply str (drop 1 hash))]
+            (om/set-state! owner :debugger? true)
+            (fetch-session! data owner id))))
       (set! raise! (fn [action]
                      (log-action! *config* action)
                      (om/transact! data #(step % action)))))
     om/IRenderState
-    (render-state [_ {:keys [debugger? new-session? value error?]}]
+    (render-state [_ {:keys [debugger? new-session? value error? fetching?]}]
       (html
-       [:div
-        (om/build c data)
-        [:footer
-         (if debugger?
-           [:div.debugger-container.row
-            [:div.one.column
-             (if new-session?
-               [:i.new-session.fa.fa-arrow-left
+       (if fetching?
+         [:h1 "Fetching Session"]
+         [:div
+          (om/build c data)
+          [:footer
+           (if debugger?
+             [:div.debugger-container.row
+              [:div.one.column
+               (if new-session?
+                 [:i.new-session.fa.fa-arrow-left
+                  {:onClick (fn [_]
+                              (om/set-state! owner :new-session? false))}]
+                 [:i.new-session.fa.fa-folder-open
+                  {:onClick (fn [_]
+                              (om/set-state! owner :new-session? true))}])]
+              (if new-session?
+                (om/build session-input {:value value :error? error?}
+                          {:opts {:change-fn (fn [v]
+                                               (om/set-state! owner :error? false)
+                                               (om/set-state! owner :value v))
+                                  :enter-fn (fn [v]
+                                              (fetch-session! data owner v))}})
+                (om/build debugger data))
+              [:div.one.column
+               [:i.fa.fa-times.close-debugger
                 {:onClick (fn [_]
-                            (om/set-state! owner :new-session? false))}]
-               [:i.new-session.fa.fa-folder-open
-                {:onClick (fn [_]
-                            (om/set-state! owner :new-session? true))}])]
-            (if new-session?
-              (om/build session-input {:value value :error? error?}
-                        {:opts {:change-fn (fn [v]
-                                             (om/set-state! owner :error? false)
-                                             (om/set-state! owner :value v))
-                                :enter-fn (fn [v]
-                                            (fetch-session! data owner v))}})
-              (om/build debugger data))
-            [:div.one.column
-             [:i.fa.fa-times.close-debugger
-              {:onClick (fn [_]
-                          (om/set-state! owner :debugger? false))}]]]
-           [:div.left
-            [:i.footer-icon.fa.fa-step-backward
-             {:onClick (fn [_]
-                         (om/set-state! owner :debugger? true))}]])]]))))
+                            (om/set-state! owner :debugger? false))}]]]
+             [:div.left
+              [:i.footer-icon.fa.fa-step-backward
+               {:onClick (fn [_]
+                           (om/set-state! owner :debugger? true))}]])]])))))
 
 (defn monitor! [component {:keys [model step target]} config]
   (start-session! model config)

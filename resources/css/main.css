@@ -210,3 +210,15 @@ button.playback {
 input.session-input.error:focus {
     border-color: #8E2C36;
 }
+
+.title-row {
+    display: flex;
+}
+
+.title-row > div {
+    width: 50%;
+}
+
+.title-row > div > span {
+    line-height: 6;
+}

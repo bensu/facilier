@@ -191,7 +191,7 @@
    [:th.center "Platform"] [:th.center.row-right "Status"]])
 
 (defn display-uuid [uuid]
-  (str (apply str (take 8 (str uuid))) "..."))
+  (apply str (take 8 (str uuid))))
 
 (defn row [session owner]
   (reify
@@ -232,7 +232,9 @@
       (let [{:keys [session/current session/all]} data]
         (html
          [:div.container {}
-          [:h2.main-title (:app/name data)]
+          [:div.title-row
+           [:div [:h2.main-title (:app/name data)]]
+           [:div [:span.right "Current: " (display-uuid (:session/id f/*config*))]]]
           #_[:div.bar {}
              [:form {}
               [:label {:htmlFor "search"} "Search"]

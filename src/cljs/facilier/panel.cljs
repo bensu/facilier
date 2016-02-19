@@ -187,7 +187,7 @@
 (def title-row
   [:tr
    [:th.row-left "Version"]
-   [:th "Session Id"] [:th "Time"] #_[:th "Duration"]
+   [:th "Session Id"] [:th "Time"]
    [:th.center "Platform"] [:th.center.row-right "Status"]])
 
 (defn display-uuid [uuid]

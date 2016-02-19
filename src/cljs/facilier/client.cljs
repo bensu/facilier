@@ -343,7 +343,8 @@
                            (om/set-state! owner :debugger? true))}]])]])))))
 
 (defn monitor! [component {:keys [model step target]} config]
-  (start-session! model config)
+  (when (nil? *config*)
+    (start-session! model config))
   (om/root monitor-component model
            {:opts {:c component :config config :step step}
             :target target}))

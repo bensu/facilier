@@ -289,21 +289,23 @@
                                 (enter-fn value)))}]]))))
 
 (defn monitor-component
-  [data owner {:keys [c step config]}]
+  [data owner {:keys [c step config session/fetch]}]
   (reify
     om/IInitState
-    (init-state [_] {:debugger? false
-                     :fetching? false
-                     :new-session? false
-                     :error? false
-                     :value ""})
+    (init-state [_]
+      {:debugger? (some? fetch)
+       :fetching? false
+       :new-session? false
+       :error? false
+       :value ""})
     om/IWillMount
     (will-mount [_]
-      (let [hash (.-hash js/document.location)]
-        (when-not (empty? hash)
-          (let [id (apply str (drop 1 hash))]
-            (om/set-state! owner :debugger? true)
-            (fetch-session! data owner id))))
+      (when (and (nil? *config*) (some? fetch))
+        (set! *config* {:session/id fetch
+                        :app/name (:app/name config)
+                        :test/url (:test/url config)})
+        (swap! history (fn [h] (assoc h :debugger? true)))
+        (fetch-session! data owner fetch))
       (set! raise! (fn [action]
                      (log-action! *config* action)
                      (om/transact! data #(step % action)))))
@@ -343,8 +345,17 @@
                            (om/set-state! owner :debugger? true))}]])]])))))
 
 (defn monitor! [component {:keys [model step target]} config]
-  (when (nil? *config*)
-    (start-session! model config))
-  (om/root monitor-component model
-           {:opts {:c component :config config :step step}
-            :target target}))
+  (let [hash (.-hash js/document.location)
+        id (some->> hash
+                    (drop 1)
+                    (apply str))
+        id (when-not (empty? id)
+             id)]
+    (when (and (nil? *config*) (nil? id))
+      (start-session! model config))
+    (om/root monitor-component model
+             {:opts (merge {:c component :config config
+                            :step step}
+                           (when (some? id)
+                             {:session/fetch id}))
+              :target target})))
